@@ -4,7 +4,7 @@ import { ClipboardList, LayoutDashboard, Settings } from "lucide-react";
 
 const links = [
   { to: "/visits", label: "Visite", icon: ClipboardList, description: "Storico, filtri e azioni rapide." },
-  { to: "/summary", label: "Riepilogo", icon: LayoutDashboard, description: "KPI e performance settimanali." },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, description: "KPI e performance settimanali." },
   { to: "/settings", label: "Impostazioni", icon: Settings, description: "Tariffe, metodi, trattamenti." },
 ];
 

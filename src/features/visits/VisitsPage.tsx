@@ -113,9 +113,11 @@ export const VisitsPage = () => {
 
   return (
     <div className="space-y-6 pb-24 lg:pb-6">
-      <div>
-        <h2 className="text-2xl font-semibold text-slate-900">Visite</h2>
-        <p className="text-sm text-slate-500">Priorità operative e gestione rapida delle visite.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-semibold text-slate-900">Visite</h2>
+          <p className="text-sm text-slate-500">Priorità operative e gestione rapida delle visite.</p>
+        </div>
       </div>
 
       <VisitsKpiBar kpis={kpis} active={activeKpi} onSelect={applyKpi} />
@@ -182,6 +184,7 @@ export const VisitsPage = () => {
           pushToast({ title: "Note salvate", tone: "success" });
         }}
       />
+
     </div>
   );
 };

@@ -7,10 +7,11 @@ import listPlugin from "@fullcalendar/list";
 import multiMonthPlugin from "@fullcalendar/multimonth";
 import itLocale from "@fullcalendar/core/locales/it";
 import { addMonths, addWeeks, addYears, format } from "date-fns";
-import { Users } from "lucide-react";
+import { Filter, Users } from "lucide-react";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
 import { Badge } from "../components/Badge";
+import { Drawer } from "../components/ui/Drawer";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   useAddDepositMutation,
@@ -30,8 +31,8 @@ import { VisitFormDrawer } from "../features/calendar/components/VisitFormDrawer
 import "../styles/fullcalendar-theme.css";
 
 export const CalendarPage = () => {
-  const { data: appointments = [] } = useAppointments();
-  const { data: patients = [] } = usePatients();
+  const { data: appointments = [], isLoading: appointmentsLoading } = useAppointments();
+  const { data: patients = [], isLoading: patientsLoading } = usePatients();
   const { data: settings } = useSettings();
   const { mutate } = useAppointmentsMutation();
   const { mutate: updateDateTime } = useUpdateVisitDateTimeMutation();
@@ -51,8 +52,18 @@ export const CalendarPage = () => {
   const [selectedPatientId, setSelectedPatientId] = useState<string>("all");
   const [paymentFilter, setPaymentFilter] = useState<"all" | "paid" | "partial" | "unpaid">("all");
   const [onlyOutstanding, setOnlyOutstanding] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [activeView, setActiveView] = useState(() => {
+    if (typeof window === "undefined") return "timeGridWeek";
+    if (window.matchMedia("(max-width: 480px)").matches) return "listWeek";
+    if (window.matchMedia("(max-width: 767px)").matches) return "timeGridDay";
+    return "timeGridWeek";
+  });
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.matchMedia("(max-width: 767px)").matches : false
+  );
+  const [isSmallMobile, setIsSmallMobile] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 480px)").matches : false
   );
 
   const patientMap = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients]);
@@ -188,11 +199,13 @@ export const CalendarPage = () => {
     viewType: string;
     patientName: string;
     treatment: string;
+    location: string;
     start: Date | null;
     end: Date | null;
     visitStatus: Appointment["status"];
     paymentStatus: "paid" | "partial" | "unpaid";
     paymentLabel: string;
+    isMobile: boolean;
   }) => {
     const durationMinutes =
       args.start && args.end ? Math.max(0, (args.end.getTime() - args.start.getTime()) / 60000) : 0;
@@ -205,12 +218,25 @@ export const CalendarPage = () => {
 
     if (args.viewType === "timeGridWeek" || args.viewType === "timeGridDay") {
       const isCompact = durationMinutes > 0 && durationMinutes < 30;
+      const chipMarkup = args.isMobile
+        ? `
+          <div class="fisio-event__chips">
+            <span class="fisio-event__chip">${escapeHtml(args.visitStatus)}</span>
+            <span class="fisio-event__chip">${escapeHtml(args.paymentLabel)}</span>
+          </div>
+        `
+        : `
+          <div class="fisio-event__chips">
+            <span class="fisio-event__chip">${escapeHtml(args.visitStatus)}</span>
+            <span class="fisio-event__chip">${escapeHtml(args.paymentLabel)}</span>
+          </div>
+        `;
       return `
         <div class="fisio-event">
           <div class="fisio-event__time">${escapeHtml(timeLabel)}</div>
           <div class="fisio-event__title">${escapeHtml(args.patientName)}</div>
           ${isCompact ? "" : `<div class="fisio-event__subtitle">${escapeHtml(args.treatment)}</div>`}
-          <div class="fisio-event__chip">${escapeHtml(args.paymentLabel)}</div>
+          ${chipMarkup}
           <span class="fisio-event__dot" aria-hidden="true"></span>
         </div>
       `;
@@ -244,6 +270,7 @@ export const CalendarPage = () => {
           <div class="fisio-event__time">${escapeHtml(timeLabel)}</div>
           <div class="fisio-event__title">${escapeHtml(args.patientName)}</div>
           <div class="fisio-event__subtitle">${escapeHtml(args.treatment)}</div>
+          ${args.location ? `<div class="fisio-event__meta">Luogo: ${escapeHtml(args.location)}</div>` : ""}
           <div class="fisio-event__chips">
             <span class="fisio-event__chip">${escapeHtml(args.visitStatus)}</span>
             <span class="fisio-event__chip">${escapeHtml(args.paymentLabel)}</span>
@@ -271,6 +298,8 @@ export const CalendarPage = () => {
 
   const selectedVisit = appointments.find((apt) => apt.id === selectedVisitId) ?? null;
   const selectedPatient = selectedVisit ? patientMap.get(selectedVisit.patientId) ?? null : null;
+  const activeFiltersCount =
+    (selectedPatientId !== "all" ? 1 : 0) + (paymentFilter !== "all" ? 1 : 0) + (onlyOutstanding ? 1 : 0);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 767px)");
@@ -280,9 +309,16 @@ export const CalendarPage = () => {
   }, []);
 
   useEffect(() => {
+    const media = window.matchMedia("(max-width: 480px)");
+    const onChange = (event: MediaQueryListEvent) => setIsSmallMobile(event.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
     const api = calendarRef.current?.getApi();
     if (!api) return;
-    const nextView = isMobile ? "timeGridDay" : "timeGridWeek";
+    const nextView = isMobile ? (isSmallMobile ? "listWeek" : "timeGridDay") : "timeGridWeek";
     if (api.view.type !== nextView) {
       api.changeView(nextView);
     }
@@ -336,82 +372,134 @@ export const CalendarPage = () => {
 
   return (
     <div className="w-full space-y-6 pb-24 lg:pb-6">
-      <div>
-        <h2 className="text-2xl font-semibold text-slate-900">Calendario visite</h2>
-        <p className="text-sm text-slate-500">Gestisci agenda, ricorrenze e pagamenti in un unico punto.</p>
-      </div>
-
-      <Card className="space-y-3">
-        <div className="grid gap-3 md:grid-cols-[1.2fr_1fr_1fr_auto] md:items-end">
-          <label className="text-xs font-semibold text-slate-500">
-            Paziente
-            <div className="mt-2 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm">
-              <Users className="h-4 w-4 text-slate-400" />
-              <select
-                value={selectedPatientId}
-                onChange={(event) => setSelectedPatientId(event.target.value)}
-                className="w-full bg-transparent text-sm focus:outline-none"
-              >
-                <option value="all">Tutti</option>
-                {patients.map((patient) => (
-                  <option key={patient.id} value={patient.id}>
-                    {patient.nome} {patient.cognome}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </label>
-          <label className="text-xs font-semibold text-slate-500">
-            Stato pagamento
-            <select
-              value={paymentFilter}
-              onChange={(event) => setPaymentFilter(event.target.value as "all" | "paid" | "partial" | "unpaid")}
-              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm"
-            >
-              <option value="all">Tutti</option>
-              <option value="paid">Pagate</option>
-              <option value="partial">Parziali</option>
-              <option value="unpaid">Insolute</option>
-            </select>
-          </label>
-          <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
-            <input
-              type="checkbox"
-              checked={onlyOutstanding}
-              onChange={(event) => setOnlyOutstanding(event.target.checked)}
-              className="h-4 w-4"
-            />
-            Solo insoluti
-          </label>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-semibold text-slate-900">Calendario visite</h2>
+          <p className="text-sm text-slate-500">Gestisci agenda, ricorrenze e pagamenti in un unico punto.</p>
+        </div>
+        {!isMobile && (
           <Button size="sm" onClick={() => openNew(new Date(), new Date(Date.now() + 60 * 60 * 1000))}>
             + Nuova visita
           </Button>
-        </div>
+        )}
+      </div>
 
-        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 text-xs text-slate-500">
-          <span className="font-semibold">Legenda:</span>
-          <Badge label="Programmata" tone="info" />
-          <Badge label="Completata" tone="success" />
-          <Badge label="Cancellata/No-show" tone="neutral" />
-          <Badge label="Pagata" tone="success" />
-          <Badge label="Parziale" tone="warning" />
-          <Badge label="Insoluta" tone="danger" />
+      <div className="flex flex-wrap items-center gap-2 md:hidden">
+        <div className="flex items-center rounded-2xl border border-slate-200 bg-white p-1 text-xs font-semibold text-slate-500 shadow-sm">
+          {[
+            { id: "timeGridDay", label: "Giorno" },
+            { id: "timeGridWeek", label: "Settimana" },
+            { id: "listWeek", label: "Lista" },
+            { id: "dayGridMonth", label: "Mese" },
+          ].map((view) => (
+            <button
+              key={view.id}
+              type="button"
+              onClick={() => {
+                calendarRef.current?.getApi().changeView(view.id);
+                setActiveView(view.id);
+              }}
+              className={`rounded-xl px-3 py-2 ${
+                activeView === view.id ? "bg-teal-600 text-white" : "text-slate-500"
+              }`}
+            >
+              {view.label}
+            </button>
+          ))}
         </div>
-      </Card>
+        <button
+          type="button"
+          onClick={() => {
+            calendarRef.current?.getApi().today();
+            calendarRef.current?.getApi().scrollToTime?.(new Date());
+          }}
+          className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm"
+        >
+          Oggi
+        </button>
+        <button
+          type="button"
+          onClick={() => setFiltersOpen(true)}
+          className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm"
+        >
+          <Filter className="h-4 w-4" />
+          Filtri{activeFiltersCount ? ` (${activeFiltersCount})` : ""}
+        </button>
+      </div>
+
+      {!isMobile && (
+        <Card className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-[1.2fr_1fr_1fr_auto] md:items-end">
+            <label className="text-xs font-semibold text-slate-500">
+              Paziente
+              <div className="mt-2 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                <Users className="h-4 w-4 text-slate-400" />
+                <select
+                  value={selectedPatientId}
+                  onChange={(event) => setSelectedPatientId(event.target.value)}
+                  className="w-full bg-transparent text-sm focus:outline-none"
+                >
+                  <option value="all">Tutti</option>
+                  {patients.map((patient) => (
+                    <option key={patient.id} value={patient.id}>
+                      {patient.nome} {patient.cognome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </label>
+            <label className="text-xs font-semibold text-slate-500">
+              Stato pagamento
+              <select
+                value={paymentFilter}
+                onChange={(event) => setPaymentFilter(event.target.value as "all" | "paid" | "partial" | "unpaid")}
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              >
+                <option value="all">Tutti</option>
+                <option value="paid">Pagate</option>
+                <option value="partial">Parziali</option>
+                <option value="unpaid">Insolute</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
+              <input
+                type="checkbox"
+                checked={onlyOutstanding}
+                onChange={(event) => setOnlyOutstanding(event.target.checked)}
+                className="h-4 w-4"
+              />
+              Solo insoluti
+            </label>
+            <Button size="sm" onClick={() => openNew(new Date(), new Date(Date.now() + 60 * 60 * 1000))}>
+              + Nuova visita
+            </Button>
+          </div>
+
+          <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 text-xs text-slate-500">
+            <span className="font-semibold">Legenda:</span>
+            <Badge label="Programmata" tone="info" />
+            <Badge label="Completata" tone="success" />
+            <Badge label="Cancellata/No-show" tone="neutral" />
+            <Badge label="Pagata" tone="success" />
+            <Badge label="Parziale" tone="warning" />
+            <Badge label="Insoluta" tone="danger" />
+          </div>
+        </Card>
+      )}
 
       <Card className="min-h-[calc(100vh-220px)] overflow-hidden">
         <div ref={calendarContainerRef}>
           <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin, multiMonthPlugin]}
-          initialView={isMobile ? "timeGridDay" : "timeGridWeek"}
+          initialView={isMobile ? (isSmallMobile ? "listWeek" : "timeGridDay") : "timeGridWeek"}
           locale={itLocale}
           firstDay={1}
           headerToolbar={{
             left: "prev,next today",
             center: "title",
             right: isMobile
-              ? "timeGridDay,timeGridWeek,listWeek,dayGridMonth"
+              ? ""
               : "multiMonthYear,dayGridMonth,timeGridWeek,timeGridDay,listWeek",
           }}
           buttonText={{
@@ -435,6 +523,8 @@ export const CalendarPage = () => {
           slotMinTime="07:00:00"
           slotMaxTime="21:00:00"
           scrollTime="08:00:00"
+          slotDuration="00:30:00"
+          snapDuration="00:15:00"
           allDaySlot={false}
           expandRows
           height={isMobile ? "calc(100vh - 240px)" : "calc(100vh - 300px)"}
@@ -446,9 +536,11 @@ export const CalendarPage = () => {
           eventShortHeight={36}
           eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
           dayMaxEvents
+          dayMaxEventRows={isMobile ? 2 : undefined}
           slotEventOverlap
           eventOverlap
           events={events}
+          datesSet={(info) => setActiveView(info.view.type)}
           selectable
           editable
           nowIndicator
@@ -516,6 +608,7 @@ export const CalendarPage = () => {
                 viewType: arg.view.type,
                 patientName,
                 treatment: ext.treatment ?? "",
+                location: ext.luogo ?? "",
                 start: arg.event.start,
                 end: arg.event.end,
                 visitStatus: ext.visitStatus ?? ext.status,
@@ -523,6 +616,7 @@ export const CalendarPage = () => {
                 paymentLabel:
                   ext.paymentStatusLabel ??
                   (paymentStatus === "paid" ? "Pagata" : paymentStatus === "partial" ? "Parziale" : "Insoluta"),
+                isMobile,
               }),
             };
           }}
@@ -536,11 +630,13 @@ export const CalendarPage = () => {
                     viewType: info.view.type,
                     patientName: info.event.title || "Visita",
                     treatment: "",
+                    location: "",
                     start: info.event.start,
                     end: info.event.end,
                     visitStatus: "programmata",
                     paymentStatus: "unpaid",
                     paymentLabel: "",
+                    isMobile,
                   });
                 }
               }
@@ -553,14 +649,83 @@ export const CalendarPage = () => {
         </div>
       </Card>
 
-      <button
-        type="button"
-        onClick={() => openNew(new Date(), new Date(Date.now() + 60 * 60 * 1000))}
-        className="fixed bottom-20 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-xl lg:hidden"
-        aria-label="Nuova visita"
-      >
-        +
-      </button>
+      {(appointmentsLoading || patientsLoading) && (
+        <div className="rounded-3xl border border-slate-200 bg-white/80 p-4 text-sm text-slate-500">
+          Caricamento calendario...
+        </div>
+      )}
+      {!appointmentsLoading && filteredAppointments.length === 0 && (
+        <div className="rounded-3xl border border-dashed border-slate-200 bg-white/80 p-6 text-center text-sm text-slate-500">
+          Nessuna visita con i filtri attivi.
+          <div className="mt-3 flex justify-center">
+            <Button size="sm" onClick={() => openNew(new Date(), new Date(Date.now() + 60 * 60 * 1000))}>
+              Nuova visita
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <Drawer open={filtersOpen} title="Filtri" onClose={() => setFiltersOpen(false)}>
+        <div className="space-y-4">
+          <label className="text-xs font-semibold text-slate-500">
+            Paziente
+            <div className="mt-2 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm">
+              <Users className="h-4 w-4 text-slate-400" />
+              <select
+                value={selectedPatientId}
+                onChange={(event) => setSelectedPatientId(event.target.value)}
+                className="w-full bg-transparent text-sm focus:outline-none"
+              >
+                <option value="all">Tutti</option>
+                {patients.map((patient) => (
+                  <option key={patient.id} value={patient.id}>
+                    {patient.nome} {patient.cognome}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </label>
+          <label className="text-xs font-semibold text-slate-500">
+            Stato pagamento
+            <select
+              value={paymentFilter}
+              onChange={(event) => setPaymentFilter(event.target.value as "all" | "paid" | "partial" | "unpaid")}
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm"
+            >
+              <option value="all">Tutti</option>
+              <option value="paid">Pagate</option>
+              <option value="partial">Parziali</option>
+              <option value="unpaid">Insolute</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
+            <input
+              type="checkbox"
+              checked={onlyOutstanding}
+              onChange={(event) => setOnlyOutstanding(event.target.checked)}
+              className="h-4 w-4"
+            />
+            Solo insoluti
+          </label>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSelectedPatientId("all");
+                setPaymentFilter("all");
+                setOnlyOutstanding(false);
+              }}
+            >
+              Reset
+            </Button>
+            <Button size="sm" onClick={() => setFiltersOpen(false)}>
+              Applica
+            </Button>
+          </div>
+        </div>
+      </Drawer>
+
 
       <VisitDetailDrawer
         open={Boolean(selectedVisitId)}

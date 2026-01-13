@@ -23,7 +23,7 @@ export const LoginPage = () => {
 
   const onSubmit = (data: LoginForm) => {
     const ok = login(data.email, data.password);
-    if (ok) navigate("/calendar");
+    if (ok) navigate("/dashboard");
   };
 
   return (

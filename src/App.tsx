@@ -9,7 +9,6 @@ import { PatientDetailPage } from "./features/patients/PatientDetailPage";
 import { VisitDetailPage } from "./features/visits/VisitDetailPage";
 import { VisitsPage } from "./pages/VisitsPage";
 import { SettingsPage } from "./pages/SettingsPage";
-import { MorePage } from "./pages/MorePage";
 import { useAuthStore } from "./stores/authStore";
 
 export default function App() {
@@ -17,19 +16,10 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={session ? <Navigate to="/calendar" replace /> : <LoginPage />} />
+      <Route path="/login" element={session ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <CalendarPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/summary"
+        path="/dashboard"
         element={
           <ProtectedRoute>
             <Layout>
@@ -38,6 +28,7 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      <Route path="/summary" element={<Navigate to="/dashboard" replace />} />
       <Route
         path="/calendar"
         element={
@@ -98,17 +89,7 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/more"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <MorePage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route path="*" element={<Navigate to="/calendar" replace />} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 }
