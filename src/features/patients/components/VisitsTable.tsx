@@ -3,12 +3,14 @@ import { endOfMonth, isWithinInterval, startOfMonth } from "date-fns";
 import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
 import { formatCurrency, formatDateTime, isInCurrentWeek, isToday } from "../../../lib/utils";
+import { getPaymentStatus } from "../../../lib/payments";
 import type { Appointment } from "../../../types";
 
 const statusLabels: Record<string, string> = {
-  programmata: "Programmato",
+  programmata: "Programmata",
   completata: "Completata",
   cancellata: "Cancellata",
+  "no-show": "No-show",
 };
 
 type VisitsTableProps = {
@@ -40,8 +42,9 @@ export const VisitsTable = ({
         (period === "week" && isInCurrentWeek(apt.start)) ||
         (period === "month" &&
           isWithinInterval(new Date(apt.start), { start: startOfMonth(new Date()), end: endOfMonth(new Date()) }));
-      const statusOk = status === "all" || apt.stato === status;
-      const paidOk = paid === "all" || (paid === "yes" ? apt.pagata : !apt.pagata);
+      const statusOk = status === "all" || apt.status === status;
+      const paymentStatus = getPaymentStatus(apt);
+      const paidOk = paid === "all" || (paid === "yes" ? paymentStatus === "paid" : paymentStatus !== "paid");
       return periodOk && statusOk && paidOk;
     });
   }, [appointments, paid, period, status]);
@@ -109,12 +112,12 @@ export const VisitsTable = ({
                 <td className="pr-4">{apt.trattamento}</td>
                 <td className="pr-4 text-xs text-slate-500">{apt.luogo}</td>
                 <td className="pr-4 text-xs uppercase tracking-wider text-slate-500">
-                  {statusLabels[apt.stato] ?? apt.stato}
+                  {statusLabels[apt.status] ?? apt.status}
                 </td>
-                <td className={`pr-4 ${apt.pagata ? "text-emerald-600" : "text-rose-600"}`}>
-                  {apt.pagata ? "Sì" : "No"}
+                <td className={`pr-4 ${getPaymentStatus(apt) === "paid" ? "text-emerald-600" : "text-rose-600"}`}>
+                  {getPaymentStatus(apt) === "paid" ? "Sì" : "No"}
                 </td>
-                <td className="pr-4">{formatCurrency(apt.costo)}</td>
+                <td className="pr-4">{formatCurrency(apt.totalAmount ?? apt.costo)}</td>
                 <td className="py-3 text-right">
                   <div className="flex flex-wrap justify-end gap-2">
                     <Button size="sm" variant="outline" onClick={() => onOpen(apt.id)}>

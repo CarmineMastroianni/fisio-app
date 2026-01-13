@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { PatientHeader } from "./PatientHeader";
 import { PatientTabs } from "./PatientTabs";
 import type { Appointment, Patient } from "../../../types";
+import { getOutstandingAmount, getPaymentStatus } from "../../../lib/payments";
 
 const getNextAppointment = (appointments: Appointment[]) =>
   appointments
@@ -33,7 +34,10 @@ export const PatientDetailPanel = ({
 }: PatientDetailPanelProps) => {
   const nextAppointment = useMemo(() => getNextAppointment(appointments), [appointments]);
   const unpaidTotal = useMemo(
-    () => appointments.filter((apt) => !apt.pagata).reduce((sum, apt) => sum + apt.costo, 0),
+    () =>
+      appointments
+        .filter((apt) => getPaymentStatus(apt) !== "paid")
+        .reduce((sum, apt) => sum + getOutstandingAmount(apt), 0),
     [appointments]
   );
 

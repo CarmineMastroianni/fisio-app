@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { addMinutes, format } from "date-fns";
 import { Drawer } from "../../../components/ui/Drawer";
 import { Button } from "../../../components/Button";
@@ -13,8 +13,6 @@ const recurrenceSchema = z.object({
   pattern: z.enum(["none", "weekly", "monthly", "yearly"]),
   count: z.coerce.number().min(1).max(24),
 });
-
-type RecurrenceConfig = z.infer<typeof recurrenceSchema>;
 
 const formSchema = z.object({
   patientId: z.string().min(1, "Seleziona un paziente"),
@@ -84,7 +82,10 @@ export const VisitFormDrawer = ({
     watch,
     setValue,
     formState: { errors },
-  } = useForm<VisitForm>({ resolver: zodResolver(formSchema), defaultValues });
+  } = useForm<VisitForm>({
+    resolver: zodResolver(formSchema) as Resolver<VisitForm>,
+    defaultValues,
+  });
 
   useEffect(() => {
     reset(defaultValues);

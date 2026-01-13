@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Tabs } from "../../../components/ui/Tabs";
 import type { Appointment, Patient } from "../../../types";
 import { formatCurrency, formatDate, formatDateTime } from "../../../lib/utils";
+import { getOutstandingAmount, getPaidAmount, getPaymentStatus } from "../../../lib/payments";
 import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
 import { VisitsTable } from "./VisitsTable";
@@ -41,10 +42,14 @@ export const PatientTabs = ({
       .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())[0];
   }, [appointments]);
 
-  const revenue = appointments.filter((apt) => apt.pagata).reduce((sum, apt) => sum + apt.costo, 0);
-  const unpaid = appointments.filter((apt) => !apt.pagata).reduce((sum, apt) => sum + apt.costo, 0);
+  const revenue = appointments
+    .filter((apt) => getPaymentStatus(apt) === "paid")
+    .reduce((sum, apt) => sum + getPaidAmount(apt), 0);
+  const unpaid = appointments
+    .filter((apt) => getPaymentStatus(apt) !== "paid")
+    .reduce((sum, apt) => sum + getOutstandingAmount(apt), 0);
   const lastPaid = appointments
-    .filter((apt) => apt.pagata)
+    .filter((apt) => getPaymentStatus(apt) === "paid")
     .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())[0];
 
   const overview = (

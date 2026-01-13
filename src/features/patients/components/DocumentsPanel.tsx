@@ -2,7 +2,7 @@ import { useState } from "react";
 import { FileText, Trash2 } from "lucide-react";
 import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
-import { useAddDocumentMutation, useDeleteDocumentMutation, useDocuments } from "../../../hooks/useData";
+import { useAddDocumentMutation, useDocuments, useRemoveDocumentMutation } from "../../../hooks/useData";
 import type { PatientDocument } from "../../../types";
 
 const readFile = (file: File): Promise<string> =>
@@ -20,7 +20,7 @@ type DocumentsPanelProps = {
 export const DocumentsPanel = ({ patientId }: DocumentsPanelProps) => {
   const { data: documents = [] } = useDocuments(patientId);
   const { mutate: addDocument } = useAddDocumentMutation();
-  const { mutate: deleteDocument } = useDeleteDocumentMutation();
+  const { mutate: deleteDocument } = useRemoveDocumentMutation();
   const [uploading, setUploading] = useState(false);
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -32,9 +32,9 @@ export const DocumentsPanel = ({ patientId }: DocumentsPanelProps) => {
       id: crypto.randomUUID(),
       patientId,
       name: file.name,
+      category: "altro",
+      uploadedAt: new Date().toISOString(),
       dataUrl,
-      size: file.size,
-      createdAt: new Date().toISOString(),
     };
     addDocument(payload);
     setUploading(false);
@@ -61,7 +61,7 @@ export const DocumentsPanel = ({ patientId }: DocumentsPanelProps) => {
                 <FileText className="h-4 w-4 text-slate-400" />
                 <div>
                   <p className="font-semibold text-slate-800">{doc.name}</p>
-                  <p className="text-xs text-slate-500">{Math.round(doc.size / 1024)} KB</p>
+                  <p className="text-xs text-slate-500">Documento</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">

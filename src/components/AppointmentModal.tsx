@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useMemo } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { format, parseISO } from "date-fns";
 import type { Appointment, Patient, Settings } from "../types";
 import { Button } from "./Button";
@@ -86,7 +86,10 @@ export const AppointmentModal = ({
     setValue,
     reset,
     formState: { errors },
-  } = useForm<AppointmentForm>({ resolver: zodResolver(appointmentSchema), defaultValues });
+  } = useForm<AppointmentForm>({
+    resolver: zodResolver(appointmentSchema) as Resolver<AppointmentForm>,
+    defaultValues,
+  });
 
   const selectedPatient = patients.find((p) => p.id === watch("patientId"));
 

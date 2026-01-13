@@ -18,13 +18,6 @@ const STORAGE_KEY = "fisio-db-v1";
 
 const makeId = () => crypto.randomUUID();
 
-const defaultClinicalNotes: ClinicalNotes = {
-  problema: "",
-  obiettivi: "",
-  esercizi: "",
-  note: "",
-};
-
 const toPaymentMethod = (value?: string) => {
   if (!value) return undefined;
   const lowered = value.toLowerCase();
@@ -357,11 +350,18 @@ const normalizeAppointment = (appointment: Appointment): Appointment => {
   const paidAmountFromPayment = appointment.payment?.amountPaid ?? (legacy.pagata ? totalAmount : 0);
   const shouldCreateDeposit =
     !hasDeposits && (legacy.pagata || appointment.payment?.paid || paidAmountFromPayment > 0);
-  const deposits = hasDeposits
+  const deposits = (hasDeposits
     ? appointment.deposits
     : shouldCreateDeposit
-      ? [buildDeposit(appointment.id, paidAmountFromPayment || totalAmount, appointment.payment?.method ?? legacy.metodoPagamento, appointment.payment?.paidAt ?? legacy.paidAt ?? appointment.end)]
-      : [];
+      ? [
+          buildDeposit(
+            appointment.id,
+            paidAmountFromPayment || totalAmount,
+            appointment.payment?.method ?? legacy.metodoPagamento,
+            appointment.payment?.paidAt ?? legacy.paidAt ?? appointment.end
+          ),
+        ]
+      : []) ?? [];
   const paidAmount = deposits.reduce((sum, deposit) => sum + deposit.amount, 0);
   const lastDeposit = deposits.length ? deposits[deposits.length - 1] : undefined;
   const payment: VisitPayment = {

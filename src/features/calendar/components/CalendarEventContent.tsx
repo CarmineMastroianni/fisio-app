@@ -11,13 +11,6 @@ type CalendarEventContentProps = {
   end: Date | null;
 };
 
-const statusBorder: Record<AppointmentStatus, string> = {
-  programmata: "border-sky-400",
-  completata: "border-emerald-400",
-  cancellata: "border-slate-300",
-  "no-show": "border-rose-300",
-};
-
 const paymentTone: Record<CalendarEventContentProps["paymentStatus"], string> = {
   paid: "bg-emerald-100 text-emerald-700",
   partial: "bg-amber-100 text-amber-700",

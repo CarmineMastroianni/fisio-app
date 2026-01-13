@@ -98,7 +98,7 @@ export const DashboardPage = () => {
               <BarChart data={weeklyRevenue}>
                 <XAxis dataKey="day" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
                 <Bar dataKey="value" radius={[6, 6, 0, 0]} fill="#0f766e" />
               </BarChart>
             </ResponsiveContainer>

@@ -141,8 +141,7 @@ export const useAddDocumentMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (document: PatientDocument) => addPatientDocument(document),
-    onSuccess: (_data, variables) =>
-      queryClient.invalidateQueries({ queryKey: ["documents"], exact: false }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["documents"], exact: false }),
   });
 };
 
@@ -150,8 +149,7 @@ export const useRemoveDocumentMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { id: string; patientId: string }) => removePatientDocument(payload.id),
-    onSuccess: (_data, variables) =>
-      queryClient.invalidateQueries({ queryKey: ["documents"], exact: false }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["documents"], exact: false }),
   });
 };
 

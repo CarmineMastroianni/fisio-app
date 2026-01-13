@@ -1,17 +1,18 @@
 import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
 import { formatCurrency, formatDateTime } from "../../../lib/utils";
+import { getOutstandingAmount, getPaidAmount, getPaymentStatus } from "../../../lib/payments";
 import type { Appointment } from "../../../types";
 
 const buildCsv = (appointments: Appointment[]) => {
-  const header = ["Data", "Trattamento", "Costo", "Metodo", "Pagata"].join(",");
+  const header = ["Data", "Trattamento", "Costo", "Metodo", "Stato"].join(",");
   const rows = appointments.map((apt) =>
     [
       new Date(apt.start).toISOString(),
       apt.trattamento,
-      apt.costo,
-      apt.metodoPagamento,
-      apt.pagata ? "si" : "no",
+      apt.totalAmount ?? apt.costo,
+      apt.payment.method ?? "",
+      getPaymentStatus(apt),
     ].join(",")
   );
   return [header, ...rows].join("\n");
@@ -23,8 +24,8 @@ type PaymentsPanelProps = {
 };
 
 export const PaymentsPanel = ({ appointments, onMarkPaid }: PaymentsPanelProps) => {
-  const unpaid = appointments.filter((apt) => !apt.pagata);
-  const paid = appointments.filter((apt) => apt.pagata);
+  const unpaid = appointments.filter((apt) => getPaymentStatus(apt) !== "paid");
+  const paid = appointments.filter((apt) => getPaymentStatus(apt) === "paid");
 
   const downloadCsv = () => {
     const csv = buildCsv(appointments);
@@ -50,7 +51,7 @@ export const PaymentsPanel = ({ appointments, onMarkPaid }: PaymentsPanelProps) 
               <p className="font-semibold text-slate-800">{apt.trattamento}</p>
               <p className="text-xs text-slate-500">{formatDateTime(apt.start)}</p>
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-rose-600">{formatCurrency(apt.costo)}</span>
+                <span className="text-rose-600">{formatCurrency(getOutstandingAmount(apt))}</span>
                 <Button size="sm" variant="outline" onClick={() => onMarkPaid(apt.id)}>
                   Segna pagato
                 </Button>
@@ -74,8 +75,8 @@ export const PaymentsPanel = ({ appointments, onMarkPaid }: PaymentsPanelProps) 
           {paid.map((apt) => (
             <div key={apt.id} className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-2">
               <span>{formatDateTime(apt.start)}</span>
-              <span className="text-slate-500">{apt.metodoPagamento}</span>
-              <span className="font-semibold text-emerald-600">{formatCurrency(apt.costo)}</span>
+              <span className="text-slate-500">{apt.payment.method ?? "-"}</span>
+              <span className="font-semibold text-emerald-600">{formatCurrency(getPaidAmount(apt))}</span>
             </div>
           ))}
           {paid.length === 0 ? (
