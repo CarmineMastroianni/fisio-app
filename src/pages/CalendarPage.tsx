@@ -411,7 +411,7 @@ export const CalendarPage = () => {
           type="button"
           onClick={() => {
             calendarRef.current?.getApi().today();
-            calendarRef.current?.getApi().scrollToTime?.(new Date());
+            calendarRef.current?.getApi().scrollToTime?.("08:00:00");
           }}
           className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm"
         >
