@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Fisio App">
+  <rect width="512" height="512" fill="#0f766e"/>
+  <circle cx="256" cy="256" r="176" fill="#0d9488"/>
+  <path d="M176 256h160" stroke="#ffffff" stroke-width="28" stroke-linecap="round"/>
+  <path d="M256 176v160" stroke="#ffffff" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="256" cy="256" r="140" fill="none" stroke="#ffffff" stroke-width="10" opacity="0.6"/>
+</svg>

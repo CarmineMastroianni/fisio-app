@@ -1,0 +1,24 @@
+{
+  "name": "Fisio App",
+  "short_name": "Fisio",
+  "description": "Agenda e gestione visite per fisioterapista domiciliare.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fff7ed",
+  "theme_color": "#0f766e",
+  "lang": "it",
+  "icons": [
+    {
+      "src": "/icons/app-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/app-icon-maskable.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

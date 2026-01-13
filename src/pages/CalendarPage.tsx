@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -11,7 +11,7 @@ import { Users } from "lucide-react";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
 import { Badge } from "../components/Badge";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   useAddDepositMutation,
   useAppointments,
@@ -40,7 +40,9 @@ export const CalendarPage = () => {
   const { mutate: addDeposit } = useAddDepositMutation();
   const { mutate: removeDeposit } = useRemoveDepositMutation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const calendarRef = useRef<FullCalendar | null>(null);
+  const calendarContainerRef = useRef<HTMLDivElement | null>(null);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Appointment | null>(null);
@@ -49,6 +51,9 @@ export const CalendarPage = () => {
   const [selectedPatientId, setSelectedPatientId] = useState<string>("all");
   const [paymentFilter, setPaymentFilter] = useState<"all" | "paid" | "partial" | "unpaid">("all");
   const [onlyOutstanding, setOnlyOutstanding] = useState(false);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 767px)").matches : false
+  );
 
   const patientMap = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients]);
 
@@ -267,6 +272,66 @@ export const CalendarPage = () => {
   const selectedVisit = appointments.find((apt) => apt.id === selectedVisitId) ?? null;
   const selectedPatient = selectedVisit ? patientMap.get(selectedVisit.patientId) ?? null : null;
 
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 767px)");
+    const onChange = (event: MediaQueryListEvent) => setIsMobile(event.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    const api = calendarRef.current?.getApi();
+    if (!api) return;
+    const nextView = isMobile ? "timeGridDay" : "timeGridWeek";
+    if (api.view.type !== nextView) {
+      api.changeView(nextView);
+    }
+  }, [isMobile]);
+
+  useEffect(() => {
+    if (!searchParams.get("new")) return;
+    const start = new Date();
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+    openNew(start, end);
+    const next = new URLSearchParams(searchParams);
+    next.delete("new");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const container = calendarContainerRef.current;
+    const api = calendarRef.current?.getApi();
+    if (!container || !api) return;
+    let startX = 0;
+    let startY = 0;
+    let isTouching = false;
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1) return;
+      isTouching = true;
+      startX = event.touches[0].clientX;
+      startY = event.touches[0].clientY;
+    };
+
+    const onTouchEnd = (event: TouchEvent) => {
+      if (!isTouching) return;
+      isTouching = false;
+      const touch = event.changedTouches[0];
+      const deltaX = touch.clientX - startX;
+      const deltaY = touch.clientY - startY;
+      if (Math.abs(deltaX) < 40 || Math.abs(deltaX) < Math.abs(deltaY)) return;
+      if (deltaX > 0) api.prev();
+      else api.next();
+    };
+
+    container.addEventListener("touchstart", onTouchStart, { passive: true });
+    container.addEventListener("touchend", onTouchEnd);
+    return () => {
+      container.removeEventListener("touchstart", onTouchStart);
+      container.removeEventListener("touchend", onTouchEnd);
+    };
+  }, []);
+
   if (!settings) return null;
 
   return (
@@ -335,16 +400,19 @@ export const CalendarPage = () => {
       </Card>
 
       <Card className="min-h-[calc(100vh-220px)] overflow-hidden">
-        <FullCalendar
+        <div ref={calendarContainerRef}>
+          <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin, multiMonthPlugin]}
-          initialView="timeGridWeek"
+          initialView={isMobile ? "timeGridDay" : "timeGridWeek"}
           locale={itLocale}
           firstDay={1}
           headerToolbar={{
             left: "prev,next today",
             center: "title",
-            right: "multiMonthYear,dayGridMonth,timeGridWeek,timeGridDay,listWeek",
+            right: isMobile
+              ? "timeGridDay,timeGridWeek,listWeek,dayGridMonth"
+              : "multiMonthYear,dayGridMonth,timeGridWeek,timeGridDay,listWeek",
           }}
           buttonText={{
             today: "Oggi",
@@ -369,7 +437,7 @@ export const CalendarPage = () => {
           scrollTime="08:00:00"
           allDaySlot={false}
           expandRows
-          height="calc(100vh - 300px)"
+          height={isMobile ? "calc(100vh - 240px)" : "calc(100vh - 300px)"}
           contentHeight="auto"
           handleWindowResize
           eventDisplay="block"
@@ -443,20 +511,20 @@ export const CalendarPage = () => {
             };
             const paymentStatus = (ext.paymentStatus ?? "unpaid") as "paid" | "partial" | "unpaid";
             const patientName = ext.patientName || arg.event.title || "Visita";
-              return {
-                html: renderEventHtml({
-                  viewType: arg.view.type,
-                  patientName,
-                  treatment: ext.treatment ?? "",
-                  start: arg.event.start,
-                  end: arg.event.end,
-                  visitStatus: ext.visitStatus ?? ext.status,
-                  paymentStatus,
-                  paymentLabel:
-                    ext.paymentStatusLabel ??
-                    (paymentStatus === "paid" ? "Pagata" : paymentStatus === "partial" ? "Parziale" : "Insoluta"),
-                }),
-              };
+            return {
+              html: renderEventHtml({
+                viewType: arg.view.type,
+                patientName,
+                treatment: ext.treatment ?? "",
+                start: arg.event.start,
+                end: arg.event.end,
+                visitStatus: ext.visitStatus ?? ext.status,
+                paymentStatus,
+                paymentLabel:
+                  ext.paymentStatusLabel ??
+                  (paymentStatus === "paid" ? "Pagata" : paymentStatus === "partial" ? "Parziale" : "Insoluta"),
+              }),
+            };
           }}
           eventDidMount={(info) => {
             if (info.view.type === "timeGridWeek" || info.view.type === "timeGridDay") {
@@ -482,7 +550,17 @@ export const CalendarPage = () => {
             eventDays.has(format(arg.date, "yyyy-MM-dd")) ? ["fc-day-has-events"] : []
           }
         />
+        </div>
       </Card>
+
+      <button
+        type="button"
+        onClick={() => openNew(new Date(), new Date(Date.now() + 60 * 60 * 1000))}
+        className="fixed bottom-20 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-xl lg:hidden"
+        aria-label="Nuova visita"
+      >
+        +
+      </button>
 
       <VisitDetailDrawer
         open={Boolean(selectedVisitId)}

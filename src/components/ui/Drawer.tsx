@@ -51,7 +51,11 @@ export const Drawer = ({ open, title, children, onClose }: DrawerProps) => {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 px-4 py-6" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 px-3 py-4 sm:items-center sm:justify-end sm:px-4 sm:py-6"
+      role="dialog"
+      aria-modal="true"
+    >
       <button
         type="button"
         aria-label="Chiudi"
@@ -62,7 +66,7 @@ export const Drawer = ({ open, title, children, onClose }: DrawerProps) => {
       />
       <div
         ref={panelRef}
-        className="relative flex h-full w-full max-w-xl flex-col overflow-hidden bg-white shadow-xl sm:rounded-3xl"
+        className="relative flex h-[85vh] w-full max-w-xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-xl sm:h-full sm:rounded-3xl"
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <h3 className="text-base font-semibold text-slate-900">{title}</h3>
