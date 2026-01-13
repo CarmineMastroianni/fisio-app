@@ -1,0 +1,84 @@
+.fc .fc-timegrid-event.fc-fisio-week {
+  overflow: hidden !important;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.fc .fc-timegrid-event.fc-fisio-event {
+  overflow: hidden !important;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.fc .fc-timegrid-event.fc-fisio-week .fc-event-main {
+  height: 100% !important;
+  overflow: hidden !important;
+  padding: 4px 6px !important;
+  display: block !important;
+}
+
+.fc .fc-timegrid-event.fc-fisio-event .fc-event-main {
+  height: 100% !important;
+  overflow: hidden !important;
+  padding: 4px 6px !important;
+  display: block !important;
+}
+
+.fc .fc-timegrid-event.fc-fisio-week .fc-event-main-frame,
+.fc .fc-timegrid-event.fc-fisio-event .fc-event-main-frame {
+  height: 100% !important;
+  overflow: hidden !important;
+  display: block !important;
+}
+
+.fc .fc-timegrid-event.fc-fisio-week .fc-event-title-container,
+.fc .fc-timegrid-event.fc-fisio-event .fc-event-title-container {
+  height: 100% !important;
+  overflow: hidden !important;
+  display: block !important;
+}
+
+.fc .fc-timegrid-event.fc-fisio-week .fisio-event-content {
+  height: 100% !important;
+  width: 100% !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.fc .fc-timegrid-event.fc-fisio-week .fisio-event-title {
+  line-height: 1.1 !important;
+}
+
+.fc .fc-timegrid-event.fc-fisio-week .fisio-chip {
+  line-height: 1 !important;
+  padding: 2px 6px !important;
+  font-size: 10px !important;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fc .fc-timegrid-event.fc-fisio-event .fisio-chip {
+  line-height: 1.1 !important;
+  padding: 3px 8px !important;
+  font-size: 11px !important;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fc .fc-timegrid-slot,
+.fc .fc-timegrid-slot-lane {
+  height: 3.25rem;
+}
+
+.fc .fc-timegrid-axis {
+  width: 3.25rem;
+}
