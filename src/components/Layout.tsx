@@ -26,7 +26,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-sand-50 text-slate-900">
+    <div className="app-shell flex min-h-[100dvh] flex-col bg-sand-50 text-slate-900">
       <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-4 py-3 sm:py-4">
           <div>
@@ -48,7 +48,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-screen-2xl gap-6 px-4 py-4 lg:py-6">
+      <div className="mx-auto flex w-full max-w-screen-2xl flex-1 gap-6 px-4 py-4 lg:py-6">
         <aside className="hidden w-56 flex-shrink-0 lg:block">
           <nav className="sticky top-24 rounded-3xl border border-slate-200 bg-white/90 p-4">
             <div className="space-y-2">
@@ -76,14 +76,20 @@ export const Layout = ({ children }: { children: ReactNode }) => {
           </nav>
         </aside>
 
-        <main className="min-w-0 flex-1 pb-24 lg:pb-6">{children}</main>
+        <main className="app-main min-w-0 flex-1 md:pb-6">{children}</main>
       </div>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-slate-200 bg-white/95 px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.5rem)] pt-2 shadow-lg md:hidden">
-        <div className="relative mx-auto flex max-w-screen-2xl items-center justify-between">
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-30 border-t border-slate-200 bg-white/95 px-4 shadow-lg md:hidden"
+        style={{
+          height: "calc(var(--tab-bar-height) + env(safe-area-inset-bottom))",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
+      >
+        <div className="relative mx-auto grid h-full max-w-screen-2xl grid-cols-[1fr_1fr_var(--fab-size)_1fr_1fr] items-center">
           <NavLink
             to="/dashboard"
-            className={`flex flex-1 flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
+            className={`flex min-h-[64px] flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
               location.pathname.startsWith("/dashboard") ? "text-teal-700" : "text-slate-500"
             }`}
           >
@@ -92,25 +98,26 @@ export const Layout = ({ children }: { children: ReactNode }) => {
           </NavLink>
           <NavLink
             to="/calendar"
-            className={`flex flex-1 flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
+            className={`flex min-h-[64px] flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
               location.pathname.startsWith("/calendar") ? "text-teal-700" : "text-slate-500"
             }`}
           >
             <CalendarDays className="h-6 w-6" />
             Calendario
           </NavLink>
+          <div className="col-start-3 h-full" aria-hidden />
           <button
             type="button"
             onClick={() => navigate("/calendar?new=1")}
-            className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-5 flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-xl"
+            className="absolute left-1/2 top-0 flex h-[var(--fab-size)] w-[var(--fab-size)] -translate-x-1/2 -translate-y-[var(--fab-raise)] items-center justify-center rounded-full bg-teal-600 text-white shadow-xl"
             aria-label="Nuova visita"
           >
             <Plus className="h-7 w-7" />
           </button>
-          <div className="pointer-events-none absolute left-1/2 top-0 h-14 w-14 -translate-x-1/2 -translate-y-5 rounded-full ring-4 ring-white/80" />
+          <div className="pointer-events-none absolute left-1/2 top-0 h-[var(--fab-size)] w-[var(--fab-size)] -translate-x-1/2 -translate-y-[var(--fab-raise)] rounded-full ring-4 ring-white/90" />
           <NavLink
             to="/visits"
-            className={`flex flex-1 flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
+            className={`flex min-h-[64px] flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
               location.pathname.startsWith("/visits") ? "text-teal-700" : "text-slate-500"
             }`}
           >
@@ -119,7 +126,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
           </NavLink>
           <NavLink
             to="/patients"
-            className={`flex flex-1 flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
+            className={`flex min-h-[64px] flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
               location.pathname.startsWith("/patients") ? "text-teal-700" : "text-slate-500"
             }`}
           >

@@ -190,9 +190,10 @@ export const CalendarPage = () => {
     if (parts.length >= 2) {
       const first = parts[0];
       const last = parts[parts.length - 1];
-      return `${first.charAt(0)}. ${last}`;
+      const firstName = first.length > 10 ? first.slice(0, 10) : first;
+      return `${firstName} ${last.charAt(0)}.`;
     }
-    return trimmed.length >= 3 ? trimmed.slice(0, 3) : trimmed;
+    return trimmed.length >= 10 ? trimmed.slice(0, 10) : trimmed;
   };
 
   const renderEventHtml = (args: {
@@ -371,7 +372,7 @@ export const CalendarPage = () => {
   if (!settings) return null;
 
   return (
-    <div className="w-full space-y-6 pb-24 lg:pb-6">
+    <div className="flex h-full flex-col gap-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold text-slate-900">Calendario visite</h2>
@@ -487,8 +488,8 @@ export const CalendarPage = () => {
         </Card>
       )}
 
-      <Card className="min-h-[calc(100vh-220px)] overflow-hidden">
-        <div ref={calendarContainerRef}>
+      <Card className="flex-1 min-h-0 overflow-hidden">
+        <div ref={calendarContainerRef} className="h-full">
           <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin, multiMonthPlugin]}
@@ -527,7 +528,7 @@ export const CalendarPage = () => {
           snapDuration="00:15:00"
           allDaySlot={false}
           expandRows
-          height={isMobile ? "calc(100vh - 240px)" : "calc(100vh - 300px)"}
+          height="100%"
           contentHeight="auto"
           handleWindowResize
           eventDisplay="block"
