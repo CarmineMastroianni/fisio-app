@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { addDays, addMonths, addWeeks, addYears, format } from "date-fns";
-import { Plus } from "lucide-react";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { VisitsKpiBar, type VisitsKpiKey } from "./components/VisitsKpiBar";
@@ -171,24 +170,9 @@ export const VisitsPage = () => {
 
   return (
     <div className="space-y-6 pb-24 lg:pb-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-900">Visite</h2>
-          <p className="text-sm text-slate-500">Priorità operative e gestione rapida delle visite.</p>
-        </div>
-        <div className="flex flex-col items-end gap-2">
-          <Button
-            onClick={openNewVisit}
-            disabled={!settings || patients.length === 0}
-            className="disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Nuova visita
-          </Button>
-          {patients.length === 0 ? (
-            <p className="text-right text-xs text-slate-500">Aggiungi prima un paziente per pianificare una visita.</p>
-          ) : null}
-        </div>
+      <div>
+        <h2 className="text-2xl font-semibold text-slate-900">Visite</h2>
+        <p className="text-sm text-slate-500">Priorità operative e gestione rapida delle visite.</p>
       </div>
 
       <VisitsKpiBar kpis={kpis} active={activeKpi} onSelect={applyKpi} />

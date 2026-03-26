@@ -7,6 +7,7 @@ import { Trash2 } from "lucide-react";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { Drawer } from "../../components/ui/Drawer";
+import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { usePatients, useCreatePatientMutation, useDeletePatientMutation } from "../../hooks/useData";
 import type { ClinicalNotes, Patient } from "../../types";
@@ -43,6 +44,7 @@ export const PatientsPage = () => {
   const { pushToast } = useToastStore();
   const [query, setQuery] = useState("");
   const [openDrawer, setOpenDrawer] = useState(false);
+  const [patientToDelete, setPatientToDelete] = useState<Patient | null>(null);
 
   const filteredPatients = useMemo(
     () =>
@@ -88,13 +90,9 @@ export const PatientsPage = () => {
   };
 
   const deletePatient = (patient: Patient) => {
-    const label = `${patient.nome} ${patient.cognome}`.trim() || "questo paziente";
-    if (!window.confirm(`Eliminare ${label}? Verranno rimossi anche visite, documenti e allegati collegati.`)) {
-      return;
-    }
-
     deletePatientMutate(patient.id, {
       onSuccess: () => {
+        setPatientToDelete(null);
         pushToast({ title: "Paziente eliminato", tone: "info" });
       },
       onError: () => {
@@ -139,27 +137,17 @@ export const PatientsPage = () => {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() =>
-                      navigate(`/patients/${patient.id}`, { state: { openNewVisit: true } })
-                    }
+                    onClick={() => navigate(`/patients/${patient.id}`, { state: { openNewVisit: true } })}
                   >
                     + Visita
                   </Button>
                   <Button size="sm" onClick={() => navigate(`/patients/${patient.id}`)}>
                     Apri scheda
                   </Button>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-3">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-600">
-                    Elimina Paziente
-                  </p>
-                  <Button size="sm" variant="danger" className="w-full md:w-auto" onClick={() => deletePatient(patient)}>
-                    <Trash2 className="mr-2 h-4 w-4" /> Elimina paziente
+                  <Button size="sm" variant="danger" onClick={() => setPatientToDelete(patient)}>
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
-              </div>
             </div>
           ))}
           {filteredPatients.length === 0 ? (
@@ -170,6 +158,15 @@ export const PatientsPage = () => {
           ) : null}
         </div>
       </Card>
+
+      <ConfirmDialog
+        open={Boolean(patientToDelete)}
+        title="Elimina paziente"
+        description={`Stai per eliminare ${patientToDelete ? `${patientToDelete.nome} ${patientToDelete.cognome}`.trim() : "questo paziente"}. Verranno rimossi anche tutte le visite, i documenti e gli allegati collegati.`}
+        confirmLabel="Elimina paziente"
+        onConfirm={() => patientToDelete && deletePatient(patientToDelete)}
+        onCancel={() => setPatientToDelete(null)}
+      />
 
       <Drawer open={openDrawer} title="Nuovo paziente" onClose={() => setOpenDrawer(false)}>
         <form className="space-y-3" onSubmit={handleSubmit(createPatient)}>

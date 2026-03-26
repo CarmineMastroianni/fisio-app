@@ -94,7 +94,7 @@ export const DashboardPage = () => {
             <span className="text-xs text-slate-500">ultimi 7 giorni</span>
           </div>
           <div className="mt-4 h-64">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <BarChart data={weeklyRevenue}>
                 <XAxis dataKey="day" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
@@ -109,7 +109,7 @@ export const DashboardPage = () => {
           <Card>
             <h3 className="text-sm font-semibold text-slate-800">Visite per trattamento</h3>
             <div className="mt-4 h-48">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <PieChart>
                   <Pie data={visitsByTreatment} dataKey="value" nameKey="name" innerRadius={50} outerRadius={70}>
                     {visitsByTreatment.map((entry, index) => (
@@ -125,7 +125,7 @@ export const DashboardPage = () => {
             <h3 className="text-sm font-semibold text-slate-800">Pagate vs non pagate</h3>
             <div className="mt-4 flex items-center gap-4">
               <div className="h-28 w-28">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <PieChart>
                     <Pie data={paidData} dataKey="value" nameKey="name" outerRadius={50}>
                       {paidData.map((entry) => (
