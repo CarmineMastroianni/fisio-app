@@ -15,11 +15,11 @@ const recurrenceSchema = z.object({
 });
 
 const formSchema = z.object({
-  patientId: z.string().min(1, "Seleziona un paziente"),
-  start: z.string().min(1),
-  duration: z.coerce.number().min(15).max(180),
-  luogo: z.string().min(2),
-  trattamento: z.string().min(2),
+  patientId: z.string(),
+  start: z.string(),
+  duration: z.coerce.number().min(5).max(480),
+  luogo: z.string(),
+  trattamento: z.string(),
   costo: z.coerce.number().min(0),
   status: z.enum(["programmata", "completata", "cancellata", "no-show"]),
   recurrence: recurrenceSchema,

@@ -12,40 +12,40 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- TABELLA: patients
 -- ============================================================
 CREATE TABLE IF NOT EXISTS patients (
-  id            uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id       uuid        NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
-  nome          text        NOT NULL DEFAULT '',
-  cognome       text        NOT NULL DEFAULT '',
-  telefono      text        NOT NULL DEFAULT '',
-  email         text        NOT NULL DEFAULT '',
-  indirizzo     text        NOT NULL DEFAULT '',
-  note_cliniche text        NOT NULL DEFAULT '',
+  id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         uuid        NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  nome            text        DEFAULT '',
+  cognome         text        DEFAULT '',
+  telefono        text        DEFAULT '',
+  email           text        DEFAULT '',
+  indirizzo       text        DEFAULT '',
+  note_cliniche   text        DEFAULT '',
   note_logistiche text,
-  tags          text[]      NOT NULL DEFAULT '{}',
-  clinical_notes jsonb,
-  created_at    timestamptz NOT NULL DEFAULT now()
+  tags            text[]      DEFAULT '{}',
+  clinical_notes  jsonb,
+  created_at      timestamptz NOT NULL DEFAULT now()
 );
 
 -- ============================================================
 -- TABELLA: appointments
 -- ============================================================
 CREATE TABLE IF NOT EXISTS appointments (
-  id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id      uuid        NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
-  patient_id   uuid        NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-  start_time   timestamptz NOT NULL,
-  end_time     timestamptz NOT NULL,
-  luogo        text        NOT NULL DEFAULT '',
-  trattamento  text        NOT NULL DEFAULT '',
-  costo        numeric(10,2) NOT NULL DEFAULT 0,
+  id           uuid          PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      uuid          NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  patient_id   uuid          NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  start_time   timestamptz   NOT NULL,
+  end_time     timestamptz   NOT NULL,
+  luogo        text          DEFAULT '',
+  trattamento  text          DEFAULT '',
+  costo        numeric(10,2) DEFAULT 0,
   total_amount numeric(10,2),
-  status       text        NOT NULL DEFAULT 'programmata'
-                           CHECK (status IN ('programmata','completata','cancellata','no-show')),
-  payment      jsonb       NOT NULL DEFAULT '{"paid": false}',
-  deposits     jsonb       NOT NULL DEFAULT '[]',
+  status       text          DEFAULT 'programmata'
+                             CHECK (status IN ('programmata','completata','cancellata','no-show')),
+  payment      jsonb         DEFAULT '{"paid": false}',
+  deposits     jsonb         DEFAULT '[]',
   notes        jsonb,
   series_id    uuid,
-  created_at   timestamptz NOT NULL DEFAULT now()
+  created_at   timestamptz   NOT NULL DEFAULT now()
 );
 
 -- ============================================================

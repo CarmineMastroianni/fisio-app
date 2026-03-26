@@ -11,24 +11,19 @@ import { usePatients, useCreatePatientMutation } from "../../hooks/useData";
 import type { ClinicalNotes, Patient } from "../../types";
 import { useToastStore } from "../../stores/toastStore";
 
-const patientSchema = z
-  .object({
-    nome: z.string(),
-    cognome: z.string(),
-    telefono: z.string(),
-    email: z.string().refine(
-      (value) => value.trim() === "" || z.string().email().safeParse(value).success,
-      { message: "Email non valida" }
-    ),
-    indirizzo: z.string(),
-    noteCliniche: z.string(),
-    noteLogistiche: z.string().optional(),
-    tags: z.string().optional(),
-  })
-  .refine((data) => Boolean(data.nome.trim() || data.cognome.trim()), {
-    message: "Inserisci almeno nome o cognome",
-    path: ["nome"],
-  });
+const patientSchema = z.object({
+  nome: z.string(),
+  cognome: z.string(),
+  telefono: z.string(),
+  email: z.string().refine(
+    (value) => value.trim() === "" || z.string().email().safeParse(value).success,
+    { message: "Email non valida" }
+  ),
+  indirizzo: z.string(),
+  noteCliniche: z.string(),
+  noteLogistiche: z.string().optional(),
+  tags: z.string().optional(),
+});
 
 type PatientForm = z.infer<typeof patientSchema>;
 
