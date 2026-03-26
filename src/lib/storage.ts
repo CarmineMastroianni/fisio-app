@@ -18,6 +18,13 @@ import type {
 // MAPPING HELPERS  (DB snake_case ↔ TypeScript camelCase)
 // ============================================================
 
+const getCurrentUserId = async (): Promise<string> => {
+  const { data, error } = await supabase.auth.getUser();
+  const userId = data.user?.id;
+  if (error || !userId) throw new Error("Non autenticato");
+  return userId;
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mapPatient = (row: any): Patient => ({
   id: row.id as string,
@@ -70,7 +77,8 @@ const mapAttachment = (row: any): VisitAttachment => ({
   dataUrl: row.data_url as string | undefined,
 });
 
-const appointmentToRow = (apt: Appointment) => ({
+const appointmentToRow = (apt: Appointment, userId?: string) => ({
+  ...(userId ? { user_id: userId } : {}),
   id: apt.id,
   patient_id: apt.patientId,
   start_time: apt.start,
@@ -91,9 +99,11 @@ const appointmentToRow = (apt: Appointment) => ({
 // ============================================================
 
 export const getPatients = async (): Promise<Patient[]> => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from("patients")
     .select("*")
+    .eq("user_id", userId)
     .order("cognome")
     .order("nome");
   if (error) throw error;
@@ -101,20 +111,24 @@ export const getPatients = async (): Promise<Patient[]> => {
 };
 
 export const getPatientById = async (patientId: string): Promise<Patient | null> => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from("patients")
     .select("*")
     .eq("id", patientId)
+    .eq("user_id", userId)
     .single();
   if (error) return null;
   return mapPatient(data);
 };
 
 export const createPatient = async (patient: Patient): Promise<Patient> => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from("patients")
     .insert({
       id: patient.id,
+      user_id: userId,
       nome: patient.nome,
       cognome: patient.cognome,
       telefono: patient.telefono,
@@ -133,6 +147,7 @@ export const createPatient = async (patient: Patient): Promise<Patient> => {
 };
 
 export const updatePatient = async (patient: Patient): Promise<Patient> => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from("patients")
     .update({
@@ -147,6 +162,7 @@ export const updatePatient = async (patient: Patient): Promise<Patient> => {
       clinical_notes: patient.clinicalNotes ?? null,
     })
     .eq("id", patient.id)
+    .eq("user_id", userId)
     .select()
     .single();
   if (error) throw error;
@@ -155,8 +171,10 @@ export const updatePatient = async (patient: Patient): Promise<Patient> => {
 
 /** @deprecated Usa createPatient o updatePatient */
 export const setPatients = async (patients: Patient[]): Promise<void> => {
+  const userId = await getCurrentUserId();
   const rows = patients.map((p) => ({
     id: p.id,
+    user_id: userId,
     nome: p.nome,
     cognome: p.cognome,
     telefono: p.telefono,
@@ -173,10 +191,12 @@ export const setPatients = async (patients: Patient[]): Promise<void> => {
 };
 
 export const updatePatientNotes = async (patientId: string, notes: ClinicalNotes): Promise<Patient | null> => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from("patients")
     .update({ clinical_notes: { ...notes, updatedAt: new Date().toISOString() } })
     .eq("id", patientId)
+    .eq("user_id", userId)
     .select()
     .single();
   if (error) return null;
@@ -188,18 +208,22 @@ export const updatePatientNotes = async (patientId: string, notes: ClinicalNotes
 // ============================================================
 
 export const getAppointments = async (): Promise<Appointment[]> => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from("appointments")
     .select("*")
+    .eq("user_id", userId)
     .order("start_time");
   if (error) throw error;
   return (data ?? []).map(mapAppointment);
 };
 
 export const getVisitsByPatientId = async (patientId: string): Promise<Appointment[]> => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from("appointments")
     .select("*")
+    .eq("user_id", userId)
     .eq("patient_id", patientId)
     .order("start_time", { ascending: false });
   if (error) throw error;
@@ -207,19 +231,22 @@ export const getVisitsByPatientId = async (patientId: string): Promise<Appointme
 };
 
 export const getVisitById = async (visitId: string): Promise<Appointment | null> => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from("appointments")
     .select("*")
     .eq("id", visitId)
+    .eq("user_id", userId)
     .single();
   if (error) return null;
   return mapAppointment(data);
 };
 
 export const upsertAppointment = async (appointment: Appointment): Promise<Appointment> => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from("appointments")
-    .upsert(appointmentToRow(appointment))
+    .upsert(appointmentToRow(appointment, userId))
     .select()
     .single();
   if (error) throw error;
@@ -227,41 +254,49 @@ export const upsertAppointment = async (appointment: Appointment): Promise<Appoi
 };
 
 export const createAppointments = async (appointments: Appointment[]): Promise<void> => {
+  const userId = await getCurrentUserId();
   const { error } = await supabase
     .from("appointments")
-    .insert(appointments.map(appointmentToRow));
+    .insert(appointments.map((appointment) => appointmentToRow(appointment, userId)));
   if (error) throw error;
 };
 
 /** @deprecated Usa upsertAppointment o createAppointments */
 export const setAppointments = async (appointments: Appointment[]): Promise<void> => {
+  const userId = await getCurrentUserId();
   const { error } = await supabase
     .from("appointments")
-    .upsert(appointments.map(appointmentToRow));
+    .upsert(appointments.map((appointment) => appointmentToRow(appointment, userId)));
   if (error) throw error;
 };
 
 export const updateVisitNotes = async (visitId: string, notes: VisitNotes): Promise<void> => {
+  const userId = await getCurrentUserId();
   const { error } = await supabase
     .from("appointments")
     .update({ notes })
-    .eq("id", visitId);
+    .eq("id", visitId)
+    .eq("user_id", userId);
   if (error) throw error;
 };
 
 export const updateVisitPayment = async (visitId: string, payment: VisitPayment): Promise<void> => {
+  const userId = await getCurrentUserId();
   const { error } = await supabase
     .from("appointments")
     .update({ payment })
-    .eq("id", visitId);
+    .eq("id", visitId)
+    .eq("user_id", userId);
   if (error) throw error;
 };
 
 export const addDeposit = async (visitId: string, deposit: Deposit): Promise<void> => {
+  const userId = await getCurrentUserId();
   const { data: row, error: fetchError } = await supabase
     .from("appointments")
     .select("deposits, costo, total_amount")
     .eq("id", visitId)
+    .eq("user_id", userId)
     .single();
   if (fetchError) throw fetchError;
 
@@ -278,15 +313,18 @@ export const addDeposit = async (visitId: string, deposit: Deposit): Promise<voi
   const { error } = await supabase
     .from("appointments")
     .update({ deposits, payment })
-    .eq("id", visitId);
+    .eq("id", visitId)
+    .eq("user_id", userId);
   if (error) throw error;
 };
 
 export const removeDeposit = async (visitId: string, depositId: string): Promise<void> => {
+  const userId = await getCurrentUserId();
   const { data: row, error: fetchError } = await supabase
     .from("appointments")
     .select("deposits, costo, total_amount")
     .eq("id", visitId)
+    .eq("user_id", userId)
     .single();
   if (fetchError) throw fetchError;
 
@@ -304,39 +342,48 @@ export const removeDeposit = async (visitId: string, depositId: string): Promise
   const { error } = await supabase
     .from("appointments")
     .update({ deposits, payment })
-    .eq("id", visitId);
+    .eq("id", visitId)
+    .eq("user_id", userId);
   if (error) throw error;
 };
 
 export const updateVisitStatus = async (visitId: string, status: Appointment["status"]): Promise<void> => {
+  const userId = await getCurrentUserId();
   const { error } = await supabase
     .from("appointments")
     .update({ status })
-    .eq("id", visitId);
+    .eq("id", visitId)
+    .eq("user_id", userId);
   if (error) throw error;
 };
 
 export const updateVisitDateTime = async (visitId: string, start: string, end: string): Promise<void> => {
+  const userId = await getCurrentUserId();
   const { error } = await supabase
     .from("appointments")
     .update({ start_time: start, end_time: end })
-    .eq("id", visitId);
+    .eq("id", visitId)
+    .eq("user_id", userId);
   if (error) throw error;
 };
 
 export const markVisitCompleted = async (visitId: string): Promise<void> => {
+  const userId = await getCurrentUserId();
   const { error } = await supabase
     .from("appointments")
     .update({ status: "completata" })
-    .eq("id", visitId);
+    .eq("id", visitId)
+    .eq("user_id", userId);
   if (error) throw error;
 };
 
 export const deleteVisit = async (visitId: string): Promise<void> => {
+  const userId = await getCurrentUserId();
   const { error } = await supabase
     .from("appointments")
     .delete()
-    .eq("id", visitId);
+    .eq("id", visitId)
+    .eq("user_id", userId);
   if (error) throw error;
 };
 
@@ -357,8 +404,9 @@ export const duplicateVisit = async (visitId: string): Promise<Appointment | nul
 export const listVisits = async (filters: VisitFilters): Promise<Appointment[]> => {
   const { period, status, paid, patientId, query, startDate, endDate } = filters;
   const now = new Date();
+  const userId = await getCurrentUserId();
 
-  let queryBuilder = supabase.from("appointments").select("*");
+  let queryBuilder = supabase.from("appointments").select("*").eq("user_id", userId);
 
   if (status !== "all") {
     queryBuilder = queryBuilder.eq("status", status);
@@ -426,7 +474,8 @@ const DEFAULT_SETTINGS: Settings = {
 };
 
 export const getSettings = async (): Promise<Settings> => {
-  const { data, error } = await supabase.from("settings").select("*").maybeSingle();
+  const userId = await getCurrentUserId();
+  const { data, error } = await supabase.from("settings").select("*").eq("user_id", userId).maybeSingle();
   if (error || !data) return DEFAULT_SETTINGS;
   return {
     tariffaStandard: Number(data.tariffa_standard),
@@ -455,9 +504,11 @@ export const setSettings = async (settings: Settings): Promise<void> => {
 // ============================================================
 
 export const getDocumentsByPatient = async (patientId: string): Promise<PatientDocument[]> => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from("patient_documents")
     .select("*")
+    .eq("user_id", userId)
     .eq("patient_id", patientId)
     .order("uploaded_at", { ascending: false });
   if (error) throw error;
@@ -465,8 +516,10 @@ export const getDocumentsByPatient = async (patientId: string): Promise<PatientD
 };
 
 export const addPatientDocument = async (document: PatientDocument): Promise<void> => {
+  const userId = await getCurrentUserId();
   const { error } = await supabase.from("patient_documents").insert({
     id: document.id,
+    user_id: userId,
     patient_id: document.patientId,
     name: document.name,
     category: document.category,
@@ -477,7 +530,8 @@ export const addPatientDocument = async (document: PatientDocument): Promise<voi
 };
 
 export const removePatientDocument = async (documentId: string): Promise<void> => {
-  const { error } = await supabase.from("patient_documents").delete().eq("id", documentId);
+  const userId = await getCurrentUserId();
+  const { error } = await supabase.from("patient_documents").delete().eq("id", documentId).eq("user_id", userId);
   if (error) throw error;
 };
 
@@ -486,9 +540,11 @@ export const removePatientDocument = async (documentId: string): Promise<void> =
 // ============================================================
 
 export const getVisitAttachments = async (visitId: string): Promise<VisitAttachment[]> => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from("visit_attachments")
     .select("*")
+    .eq("user_id", userId)
     .eq("visit_id", visitId)
     .order("uploaded_at", { ascending: false });
   if (error) throw error;
@@ -496,6 +552,7 @@ export const getVisitAttachments = async (visitId: string): Promise<VisitAttachm
 };
 
 export const getVisitAttachmentsByPatientId = async (patientId: string): Promise<VisitAttachment[]> => {
+  const userId = await getCurrentUserId();
   const visits = await getVisitsByPatientId(patientId);
   const visitIds = visits.map((v) => v.id);
   if (visitIds.length === 0) return [];
@@ -503,6 +560,7 @@ export const getVisitAttachmentsByPatientId = async (patientId: string): Promise
   const { data, error } = await supabase
     .from("visit_attachments")
     .select("*")
+    .eq("user_id", userId)
     .in("visit_id", visitIds)
     .order("uploaded_at", { ascending: false });
   if (error) throw error;
@@ -510,8 +568,10 @@ export const getVisitAttachmentsByPatientId = async (patientId: string): Promise
 };
 
 export const addVisitAttachment = async (attachment: VisitAttachment): Promise<void> => {
+  const userId = await getCurrentUserId();
   const { error } = await supabase.from("visit_attachments").insert({
     id: attachment.id,
+    user_id: userId,
     visit_id: attachment.visitId,
     name: attachment.name,
     category: attachment.category,
@@ -522,7 +582,8 @@ export const addVisitAttachment = async (attachment: VisitAttachment): Promise<v
 };
 
 export const removeVisitAttachment = async (attachmentId: string): Promise<void> => {
-  const { error } = await supabase.from("visit_attachments").delete().eq("id", attachmentId);
+  const userId = await getCurrentUserId();
+  const { error } = await supabase.from("visit_attachments").delete().eq("id", attachmentId).eq("user_id", userId);
   if (error) throw error;
 };
 

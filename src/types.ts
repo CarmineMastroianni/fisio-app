@@ -115,6 +115,7 @@ export type Settings = {
 };
 
 export type Session = {
+  id: string;
   email: string;
   nome: string;
 };

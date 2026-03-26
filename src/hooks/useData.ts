@@ -41,83 +41,121 @@ import type {
   VisitNotes,
   VisitPayment,
 } from "../types";
+import { useAuthStore } from "../stores/authStore";
 
 // ============================================================
 // QUERY HOOKS
 // ============================================================
 
 export const usePatients = () =>
-  useQuery({
-    queryKey: ["patients"],
-    queryFn: () => getPatients(),
-  });
+  {
+    const sessionId = useAuthStore((state) => state.session?.id);
+    return useQuery({
+      queryKey: ["patients", sessionId],
+      queryFn: () => getPatients(),
+      enabled: Boolean(sessionId),
+    });
+  };
 
 export const usePatient = (patientId?: string) =>
-  useQuery({
-    queryKey: ["patients", patientId],
-    queryFn: () => (patientId ? getPatientById(patientId) : null),
-    enabled: Boolean(patientId),
-  });
+  {
+    const sessionId = useAuthStore((state) => state.session?.id);
+    return useQuery({
+      queryKey: ["patients", sessionId, patientId],
+      queryFn: () => (patientId ? getPatientById(patientId) : null),
+      enabled: Boolean(sessionId && patientId),
+    });
+  };
 
 export const useAppointments = () =>
-  useQuery({
-    queryKey: ["appointments"],
-    queryFn: () => getAppointments(),
-  });
+  {
+    const sessionId = useAuthStore((state) => state.session?.id);
+    return useQuery({
+      queryKey: ["appointments", sessionId],
+      queryFn: () => getAppointments(),
+      enabled: Boolean(sessionId),
+    });
+  };
 
 export const useVisitsList = (filters: VisitFilters) =>
-  useQuery({
-    queryKey: ["appointments", "list", filters],
-    queryFn: () => listVisits(filters),
-  });
+  {
+    const sessionId = useAuthStore((state) => state.session?.id);
+    return useQuery({
+      queryKey: ["appointments", sessionId, "list", filters],
+      queryFn: () => listVisits(filters),
+      enabled: Boolean(sessionId),
+    });
+  };
 
 export const useVisitsByPatient = (patientId?: string) =>
-  useQuery({
-    queryKey: ["appointments", "patient", patientId],
-    queryFn: () => (patientId ? getVisitsByPatientId(patientId) : []),
-    enabled: Boolean(patientId),
-  });
+  {
+    const sessionId = useAuthStore((state) => state.session?.id);
+    return useQuery({
+      queryKey: ["appointments", sessionId, "patient", patientId],
+      queryFn: () => (patientId ? getVisitsByPatientId(patientId) : []),
+      enabled: Boolean(sessionId && patientId),
+    });
+  };
 
 export const useVisit = (visitId?: string) =>
-  useQuery({
-    queryKey: ["appointments", "single", visitId],
-    queryFn: () => (visitId ? getVisitById(visitId) : null),
-    enabled: Boolean(visitId),
-  });
+  {
+    const sessionId = useAuthStore((state) => state.session?.id);
+    return useQuery({
+      queryKey: ["appointments", sessionId, "single", visitId],
+      queryFn: () => (visitId ? getVisitById(visitId) : null),
+      enabled: Boolean(sessionId && visitId),
+    });
+  };
 
 export const usePatientKpi = (patientId?: string) =>
-  useQuery({
-    queryKey: ["patient-kpi", patientId],
-    queryFn: () => (patientId ? computePatientKpi(patientId) : null),
-    enabled: Boolean(patientId),
-  });
+  {
+    const sessionId = useAuthStore((state) => state.session?.id);
+    return useQuery({
+      queryKey: ["patient-kpi", sessionId, patientId],
+      queryFn: () => (patientId ? computePatientKpi(patientId) : null),
+      enabled: Boolean(sessionId && patientId),
+    });
+  };
 
 export const useSettings = () =>
-  useQuery({
-    queryKey: ["settings"],
-    queryFn: () => getSettings(),
-  });
+  {
+    const sessionId = useAuthStore((state) => state.session?.id);
+    return useQuery({
+      queryKey: ["settings", sessionId],
+      queryFn: () => getSettings(),
+      enabled: Boolean(sessionId),
+    });
+  };
 
 export const useDocuments = (patientId?: string) =>
-  useQuery({
-    queryKey: ["documents", patientId],
-    queryFn: () => (patientId ? getDocumentsByPatient(patientId) : []),
-    enabled: Boolean(patientId),
-  });
+  {
+    const sessionId = useAuthStore((state) => state.session?.id);
+    return useQuery({
+      queryKey: ["documents", sessionId, patientId],
+      queryFn: () => (patientId ? getDocumentsByPatient(patientId) : []),
+      enabled: Boolean(sessionId && patientId),
+    });
+  };
 
 export const useVisitAttachments = (visitId?: string) =>
-  useQuery({
-    queryKey: ["visit-attachments", visitId],
-    queryFn: () => (visitId ? getVisitAttachments(visitId) : []),
-    enabled: Boolean(visitId),
-  });
+  {
+    const sessionId = useAuthStore((state) => state.session?.id);
+    return useQuery({
+      queryKey: ["visit-attachments", sessionId, visitId],
+      queryFn: () => (visitId ? getVisitAttachments(visitId) : []),
+      enabled: Boolean(sessionId && visitId),
+    });
+  };
 
 export const useVisitAttachmentsByPatient = (patientId?: string) =>
-  useQuery({
-    queryKey: ["visit-attachments", "patient", patientId],
-    queryFn: () => (patientId ? getVisitAttachmentsByPatientId(patientId) : []),
-    enabled: Boolean(patientId),
-  });
+  {
+    const sessionId = useAuthStore((state) => state.session?.id);
+    return useQuery({
+      queryKey: ["visit-attachments", sessionId, "patient", patientId],
+      queryFn: () => (patientId ? getVisitAttachmentsByPatientId(patientId) : []),
+      enabled: Boolean(sessionId && patientId),
+    });
+  };
 
 // ============================================================
 // PATIENT MUTATIONS

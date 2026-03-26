@@ -13,6 +13,7 @@ type AuthState = {
 const toSession = (user: { email?: string; user_metadata?: Record<string, unknown> } | null): Session | null => {
   if (!user) return null;
   return {
+    id: (user as { id?: string }).id ?? "",
     email: user.email ?? "",
     nome: (user.user_metadata?.nome as string) ?? user.email?.split("@")[0] ?? "Fisioterapista",
   };
