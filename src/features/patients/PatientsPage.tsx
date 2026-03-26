@@ -7,7 +7,7 @@ import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { Drawer } from "../../components/ui/Drawer";
 import { EmptyState } from "../../components/ui/EmptyState";
-import { usePatients, useCreatePatientMutation } from "../../hooks/useData";
+import { usePatients, useCreatePatientMutation, useDeletePatientMutation } from "../../hooks/useData";
 import type { ClinicalNotes, Patient } from "../../types";
 import { useToastStore } from "../../stores/toastStore";
 
@@ -38,6 +38,7 @@ export const PatientsPage = () => {
   const navigate = useNavigate();
   const { data: patients = [] } = usePatients();
   const { mutate: createPatientMutate, isPending } = useCreatePatientMutation();
+  const { mutate: deletePatientMutate } = useDeletePatientMutation();
   const { pushToast } = useToastStore();
   const [query, setQuery] = useState("");
   const [openDrawer, setOpenDrawer] = useState(false);
@@ -85,6 +86,22 @@ export const PatientsPage = () => {
     });
   };
 
+  const deletePatient = (patient: Patient) => {
+    const label = `${patient.nome} ${patient.cognome}`.trim() || "questo paziente";
+    if (!window.confirm(`Eliminare ${label}? Verranno rimossi anche visite, documenti e allegati collegati.`)) {
+      return;
+    }
+
+    deletePatientMutate(patient.id, {
+      onSuccess: () => {
+        pushToast({ title: "Paziente eliminato", tone: "info" });
+      },
+      onError: () => {
+        pushToast({ title: "Errore durante l'eliminazione", tone: "error" });
+      },
+    });
+  };
+
   return (
     <div className="space-y-6 pb-24 lg:pb-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -128,6 +145,9 @@ export const PatientsPage = () => {
                 </Button>
                 <Button size="sm" onClick={() => navigate(`/patients/${patient.id}`)}>
                   Apri scheda
+                </Button>
+                <Button size="sm" variant="danger" onClick={() => deletePatient(patient)}>
+                  Elimina
                 </Button>
               </div>
             </div>

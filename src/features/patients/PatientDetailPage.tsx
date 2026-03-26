@@ -12,6 +12,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import {
   useAddDepositMutation,
   useAddDocumentMutation,
+  useDeletePatientMutation,
   useDeleteVisitMutation,
   useDocuments,
   useDuplicateVisitMutation,
@@ -74,6 +75,7 @@ export const PatientDetailPage = () => {
   const { data: documents = [] } = useDocuments(id);
   const { data: visitAttachments = [] } = useVisitAttachmentsByPatient(id);
   const { mutate: updatePatientMutate } = useUpdatePatientMutation();
+  const { mutate: deletePatientMutate } = useDeletePatientMutation();
   const { mutate: upsertVisit } = useUpsertAppointmentMutation();
   const { mutate: deleteVisitMutate } = useDeleteVisitMutation();
   const { mutate: addDepositMutate } = useAddDepositMutation();
@@ -164,8 +166,26 @@ export const PatientDetailPage = () => {
   };
 
   const deleteVisit = (visitId: string) => {
+    if (!window.confirm("Eliminare questa visita?")) return;
     deleteVisitMutate(visitId, {
       onSuccess: () => pushToast({ title: "Visita eliminata", tone: "info" }),
+    });
+  };
+
+  const deletePatient = () => {
+    const label = `${patient.nome} ${patient.cognome}`.trim() || "questo paziente";
+    if (!window.confirm(`Eliminare ${label}? Verranno rimossi anche visite, documenti e allegati collegati.`)) {
+      return;
+    }
+
+    deletePatientMutate(patient.id, {
+      onSuccess: () => {
+        pushToast({ title: "Paziente eliminato", tone: "info" });
+        navigate("/patients");
+      },
+      onError: () => {
+        pushToast({ title: "Errore durante l'eliminazione", tone: "error" });
+      },
     });
   };
 
@@ -260,6 +280,7 @@ export const PatientDetailPage = () => {
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={() => setDrawer({ type: "new-visit" })}><Plus className="mr-2 h-4 w-4" /> Nuova visita</Button>
             <Button size="sm" variant="outline" onClick={() => setDrawer({ type: "edit-patient" })}><Pencil className="mr-2 h-4 w-4" /> Modifica</Button>
+            <Button size="sm" variant="danger" onClick={deletePatient}>Elimina paziente</Button>
             {patient.telefono ? (
               <a className="inline-flex items-center justify-center rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50" href={`tel:${patient.telefono}`}>
                 <Phone className="mr-2 h-4 w-4" /> Chiama

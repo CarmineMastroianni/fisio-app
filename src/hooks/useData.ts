@@ -5,6 +5,7 @@ import {
   addVisitAttachment,
   createAppointments,
   createPatient,
+  deletePatient,
   deleteVisit,
   duplicateVisit,
   computePatientKpi,
@@ -174,6 +175,21 @@ export const useUpdatePatientMutation = () => {
   return useMutation({
     mutationFn: (patient: Patient) => updatePatient(patient),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["patients"], exact: false }),
+  });
+};
+
+export const useDeletePatientMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (patientId: string) => deletePatient(patientId),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["patients"], exact: false }),
+        queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
+        queryClient.invalidateQueries({ queryKey: ["documents"], exact: false }),
+        queryClient.invalidateQueries({ queryKey: ["visit-attachments"], exact: false }),
+        queryClient.invalidateQueries({ queryKey: ["patient-kpi"], exact: false }),
+      ]),
   });
 };
 

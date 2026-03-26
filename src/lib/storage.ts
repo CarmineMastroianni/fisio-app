@@ -203,6 +203,16 @@ export const updatePatientNotes = async (patientId: string, notes: ClinicalNotes
   return mapPatient(data);
 };
 
+export const deletePatient = async (patientId: string): Promise<void> => {
+  const userId = await getCurrentUserId();
+  const { error } = await supabase
+    .from("patients")
+    .delete()
+    .eq("id", patientId)
+    .eq("user_id", userId);
+  if (error) throw error;
+};
+
 // ============================================================
 // APPOINTMENTS
 // ============================================================

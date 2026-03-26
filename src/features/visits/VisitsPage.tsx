@@ -151,6 +151,7 @@ export const VisitsPage = () => {
             pushToast({ title: "Visita duplicata", tone: "success" });
           }}
           onDelete={(visitId) => {
+            if (!window.confirm("Eliminare questa visita?")) return;
             deleteVisit(visitId);
             pushToast({ title: "Visita eliminata", tone: "info" });
             if (visitId === selectedVisitId) setSelectedVisitId(null);

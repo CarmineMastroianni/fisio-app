@@ -66,6 +66,7 @@ export const VisitDetailPage = () => {
 
   const deleteVisit = () => {
     if (!visit) return;
+    if (!window.confirm("Eliminare questa visita?")) return;
     deleteVisitMutate(visit.id, {
       onSuccess: () => {
         pushToast({ title: "Visita eliminata", tone: "info" });
