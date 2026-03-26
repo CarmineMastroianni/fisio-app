@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { addHours, format } from "date-fns";
-import { Mail, MapPin, Phone, Plus, Pencil } from "lucide-react";
+import { Mail, MapPin, Phone, Plus, Pencil, Trash2 } from "lucide-react";
 import { Breadcrumb } from "../../components/ui/Breadcrumb";
 import { DropdownMenu } from "../../components/ui/DropdownMenu";
 import { Tabs } from "../../components/ui/Tabs";
@@ -280,7 +280,6 @@ export const PatientDetailPage = () => {
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={() => setDrawer({ type: "new-visit" })}><Plus className="mr-2 h-4 w-4" /> Nuova visita</Button>
             <Button size="sm" variant="outline" onClick={() => setDrawer({ type: "edit-patient" })}><Pencil className="mr-2 h-4 w-4" /> Modifica</Button>
-            <Button size="sm" variant="danger" onClick={deletePatient}>Elimina paziente</Button>
             {patient.telefono ? (
               <a className="inline-flex items-center justify-center rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50" href={`tel:${patient.telefono}`}>
                 <Phone className="mr-2 h-4 w-4" /> Chiama
@@ -303,6 +302,17 @@ export const PatientDetailPage = () => {
             <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Insoluti</p>
             <p className="mt-2 font-semibold text-rose-600">{formatCurrency(outstandingTotal)}</p>
             <p className="text-xs text-slate-500">Totale da incassare</p>
+          </div>
+        </div>
+        <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-600">Elimina Paziente</p>
+              <p className="mt-1 text-sm text-rose-700">Rimuove il paziente con visite, documenti e allegati collegati.</p>
+            </div>
+            <Button size="sm" variant="danger" className="w-full md:w-auto" onClick={deletePatient}>
+              <Trash2 className="mr-2 h-4 w-4" /> Elimina paziente
+            </Button>
           </div>
         </div>
       </div>

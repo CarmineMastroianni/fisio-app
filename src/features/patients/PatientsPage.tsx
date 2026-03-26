@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Trash2 } from "lucide-react";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { Drawer } from "../../components/ui/Drawer";
@@ -123,32 +124,41 @@ export const PatientsPage = () => {
           {filteredPatients.map((patient) => (
             <div
               key={patient.id}
-              className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:flex-row md:items-center md:justify-between"
+              className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4"
             >
-              <button onClick={() => navigate(`/patients/${patient.id}`)} className="text-left">
-                <p className="text-sm font-semibold text-slate-800">
-                  {patient.nome} {patient.cognome}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {[patient.telefono, patient.email].filter(Boolean).join(" · ") || "Nessun contatto"}
-                </p>
-              </button>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    navigate(`/patients/${patient.id}`, { state: { openNewVisit: true } })
-                  }
-                >
-                  + Visita
-                </Button>
-                <Button size="sm" onClick={() => navigate(`/patients/${patient.id}`)}>
-                  Apri scheda
-                </Button>
-                <Button size="sm" variant="danger" onClick={() => deletePatient(patient)}>
-                  Elimina
-                </Button>
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <button onClick={() => navigate(`/patients/${patient.id}`)} className="text-left">
+                  <p className="text-sm font-semibold text-slate-800">
+                    {patient.nome} {patient.cognome}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {[patient.telefono, patient.email].filter(Boolean).join(" · ") || "Nessun contatto"}
+                  </p>
+                </button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      navigate(`/patients/${patient.id}`, { state: { openNewVisit: true } })
+                    }
+                  >
+                    + Visita
+                  </Button>
+                  <Button size="sm" onClick={() => navigate(`/patients/${patient.id}`)}>
+                    Apri scheda
+                  </Button>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-3">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-600">
+                    Elimina Paziente
+                  </p>
+                  <Button size="sm" variant="danger" className="w-full md:w-auto" onClick={() => deletePatient(patient)}>
+                    <Trash2 className="mr-2 h-4 w-4" /> Elimina paziente
+                  </Button>
+                </div>
               </div>
             </div>
           ))}
