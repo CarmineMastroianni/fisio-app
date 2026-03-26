@@ -36,4 +36,24 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "react-vendor": ["react", "react-dom", "react-router-dom"],
+          "query-vendor": ["@tanstack/react-query"],
+          "calendar-vendor": [
+            "@fullcalendar/react",
+            "@fullcalendar/daygrid",
+            "@fullcalendar/timegrid",
+            "@fullcalendar/interaction",
+            "@fullcalendar/list",
+            "@fullcalendar/multimonth",
+          ],
+          "chart-vendor": ["recharts"],
+          "supabase-vendor": ["@supabase/supabase-js"],
+        },
+      },
+    },
+  },
 });

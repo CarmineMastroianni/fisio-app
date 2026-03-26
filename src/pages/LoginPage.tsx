@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -7,7 +8,7 @@ import { useAuthStore } from "../stores/authStore";
 
 const loginSchema = z.object({
   email: z.string().email("Inserisci un'email valida"),
-  password: z.string().min(4, "Minimo 4 caratteri"),
+  password: z.string().min(6, "Minimo 6 caratteri"),
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
@@ -15,21 +16,31 @@ type LoginForm = z.infer<typeof loginSchema>;
 export const LoginPage = () => {
   const { login } = useAuthStore();
   const navigate = useNavigate();
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) });
 
-  const onSubmit = (data: LoginForm) => {
-    const ok = login(data.email, data.password);
-    if (ok) navigate("/dashboard");
+  const onSubmit = async (data: LoginForm) => {
+    setServerError(null);
+    setIsLoading(true);
+    const { error } = await login(data.email, data.password);
+    setIsLoading(false);
+    if (error) {
+      setServerError("Email o password non corretti.");
+      return;
+    }
+    navigate("/dashboard");
   };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-sand-50 px-4">
       <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-lg">
-        <p className="text-xs uppercase tracking-[0.3em] text-teal-700">Fisioterapista a domicilio</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-teal-700">Studio Fisioterapico</p>
         <h1 className="mt-3 text-2xl font-semibold text-slate-900">Accedi alla tua agenda</h1>
         <p className="mt-2 text-sm text-slate-500">
           Gestisci visite, pazienti e incassi ovunque ti trovi.
@@ -41,6 +52,7 @@ export const LoginPage = () => {
             <input
               {...register("email")}
               type="email"
+              autoComplete="email"
               className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-teal-500 focus:outline-none"
               placeholder="nome@email.it"
             />
@@ -51,18 +63,23 @@ export const LoginPage = () => {
             <input
               {...register("password")}
               type="password"
+              autoComplete="current-password"
               className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-teal-500 focus:outline-none"
-              placeholder="••••"
+              placeholder="••••••"
             />
             {errors.password ? (
               <p className="mt-1 text-xs text-rose-600">{errors.password.message}</p>
             ) : null}
           </div>
-          <Button type="submit" className="w-full">Accedi</Button>
+
+          {serverError ? (
+            <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-600">{serverError}</p>
+          ) : null}
+
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? "Accesso in corso…" : "Accedi"}
+          </Button>
         </form>
-        <div className="mt-6 rounded-2xl bg-slate-50 p-3 text-xs text-slate-600">
-          Demo rapida: inserisci qualsiasi email e una password di almeno 4 caratteri.
-        </div>
       </div>
     </div>
   );

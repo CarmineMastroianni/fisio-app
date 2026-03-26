@@ -1,36 +1,45 @@
 import { create } from "zustand";
 import type { Session } from "../types";
-
-const SESSION_KEY = "fisio-session";
+import { supabase } from "../lib/supabase";
 
 type AuthState = {
   session: Session | null;
-  restore: () => void;
-  login: (email: string, password: string) => boolean;
-  logout: () => void;
+  loading: boolean;
+  init: () => Promise<void>;
+  login: (email: string, password: string) => Promise<{ error: string | null }>;
+  logout: () => Promise<void>;
+};
+
+const toSession = (user: { email?: string; user_metadata?: Record<string, unknown> } | null): Session | null => {
+  if (!user) return null;
+  return {
+    email: user.email ?? "",
+    nome: (user.user_metadata?.nome as string) ?? user.email?.split("@")[0] ?? "Fisioterapista",
+  };
 };
 
 export const useAuthStore = create<AuthState>((set) => ({
   session: null,
-  restore: () => {
-    const raw = localStorage.getItem(SESSION_KEY);
-    if (!raw) return;
-    try {
-      const session = JSON.parse(raw) as Session;
-      set({ session });
-    } catch {
-      localStorage.removeItem(SESSION_KEY);
-    }
+  loading: true,
+
+  init: async () => {
+    const { data } = await supabase.auth.getSession();
+    set({ session: toSession(data.session?.user ?? null), loading: false });
+
+    supabase.auth.onAuthStateChange((_event, session) => {
+      set({ session: toSession(session?.user ?? null) });
+    });
   },
-  login: (email: string, password: string) => {
-    if (!email || !password) return false;
-    const session: Session = { email, nome: email.split("@")[0] || "Fisioterapista" };
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    set({ session });
-    return true;
+
+  login: async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { error: error.message };
+    set({ session: toSession(data.user) });
+    return { error: null };
   },
-  logout: () => {
-    localStorage.removeItem(SESSION_KEY);
+
+  logout: async () => {
+    await supabase.auth.signOut();
     set({ session: null });
   },
 }));

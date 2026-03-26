@@ -6,7 +6,7 @@ import interactionPlugin from "@fullcalendar/interaction";
 import listPlugin from "@fullcalendar/list";
 import multiMonthPlugin from "@fullcalendar/multimonth";
 import itLocale from "@fullcalendar/core/locales/it";
-import { addMonths, addWeeks, addYears, format } from "date-fns";
+import { addDays, addMonths, addWeeks, addYears, format } from "date-fns";
 import { Filter, Users } from "lucide-react";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
@@ -16,13 +16,15 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   useAddDepositMutation,
   useAppointments,
-  useAppointmentsMutation,
+  useCreateAppointmentsMutation,
+  useDeleteVisitMutation,
   usePatients,
   useRemoveDepositMutation,
   useSettings,
   useUpdateVisitDateTimeMutation,
   useUpdateVisitNotesMutation,
   useUpdateVisitStatusMutation,
+  useUpsertAppointmentMutation,
 } from "../hooks/useData";
 import type { Appointment } from "../types";
 import { getPaymentStatus } from "../lib/payments";
@@ -34,7 +36,9 @@ export const CalendarPage = () => {
   const { data: appointments = [], isLoading: appointmentsLoading } = useAppointments();
   const { data: patients = [], isLoading: patientsLoading } = usePatients();
   const { data: settings } = useSettings();
-  const { mutate } = useAppointmentsMutation();
+  const { mutate: upsertVisit } = useUpsertAppointmentMutation();
+  const { mutate: createVisits } = useCreateAppointmentsMutation();
+  const { mutate: deleteVisitMutate } = useDeleteVisitMutation();
   const { mutate: updateDateTime } = useUpdateVisitDateTimeMutation();
   const { mutate: updateStatus } = useUpdateVisitStatusMutation();
   const { mutate: updateNotes } = useUpdateVisitNotesMutation();
@@ -112,45 +116,30 @@ export const CalendarPage = () => {
     setFormOpen(true);
   };
 
-  const onSave = ({ appointment, scope, recurrence }: { appointment: Appointment; scope: "single" | "series"; recurrence: { pattern: "none" | "weekly" | "monthly" | "yearly"; count: number } }) => {
-    let updated = [...appointments];
+  const shiftRecurringDate = (date: Date, pattern: "none" | "daily" | "weekly" | "monthly" | "yearly", offset: number) => {
+    if (pattern === "none") return date;
+    if (pattern === "daily") return addDays(date, offset);
+    if (pattern === "weekly") return addWeeks(date, offset);
+    if (pattern === "monthly") return addMonths(date, offset);
+    return addYears(date, offset);
+  };
 
+  const onSave = ({ appointment, recurrence }: { appointment: Appointment; scope: "single" | "series"; recurrence: { pattern: "none" | "daily" | "weekly" | "monthly" | "yearly"; count: number } }) => {
     if (editing) {
-      if (scope === "series" && editing.seriesId) {
-        updated = updated.map((apt) =>
-          apt.seriesId === editing.seriesId
-            ? { ...apt, ...appointment, id: apt.id, start: apt.start, end: apt.end }
-            : apt
-        );
-      } else {
-        updated = updated.map((apt) => (apt.id === editing.id ? appointment : apt));
-      }
+      upsertVisit(appointment);
     } else {
       if (recurrence.pattern === "none") {
-        updated.push(appointment);
+        upsertVisit(appointment);
       } else {
         const seriesId = crypto.randomUUID();
         const occurrences = Array.from({ length: recurrence.count }).map((_, index) => {
-          const offset = index;
-          const startDate =
-            recurrence.pattern === "weekly"
-              ? addWeeks(new Date(appointment.start), offset)
-              : recurrence.pattern === "monthly"
-                ? addMonths(new Date(appointment.start), offset)
-                : addYears(new Date(appointment.start), offset);
-          const endDate =
-            recurrence.pattern === "weekly"
-              ? addWeeks(new Date(appointment.end), offset)
-              : recurrence.pattern === "monthly"
-                ? addMonths(new Date(appointment.end), offset)
-                : addYears(new Date(appointment.end), offset);
+          const startDate = shiftRecurringDate(new Date(appointment.start), recurrence.pattern, index);
+          const endDate = shiftRecurringDate(new Date(appointment.end), recurrence.pattern, index);
           return { ...appointment, id: crypto.randomUUID(), start: startDate.toISOString(), end: endDate.toISOString(), seriesId };
         });
-        updated = updated.concat(occurrences);
+        createVisits(occurrences);
       }
     }
-
-    mutate(updated);
     setFormOpen(false);
     setEditing(null);
     setPrefill(undefined);
@@ -158,7 +147,7 @@ export const CalendarPage = () => {
 
   const onDelete = () => {
     if (!editing) return;
-    mutate(appointments.filter((apt) => apt.id !== editing.id));
+    deleteVisitMutate(editing.id);
     setFormOpen(false);
     setEditing(null);
   };

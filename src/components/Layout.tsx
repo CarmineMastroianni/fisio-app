@@ -69,11 +69,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
                 </NavLink>
               ))}
             </div>
-            <div className="mt-6 rounded-2xl bg-slate-50 p-3 text-xs text-slate-600">
-              <p className="font-semibold text-slate-700">Suggerimento</p>
-              <p className="mt-1">La prossima visita oggi è alle 15:30. Preparati al kit domiciliare.</p>
-            </div>
-          </nav>
+            </nav>
         </aside>
 
         <main className="app-main min-w-0 flex-1 md:pb-6">{children}</main>

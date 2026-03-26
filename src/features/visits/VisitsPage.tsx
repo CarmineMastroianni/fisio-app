@@ -9,7 +9,7 @@ import { applyVisitFilters } from "./utils/visitFilters";
 import { computeVisitsKpis } from "./utils/visitKpis";
 import {
   useAppointments,
-  useAppointmentsMutation,
+  useUpsertAppointmentMutation,
   useAddDepositMutation,
   useDeleteVisitMutation,
   useDuplicateVisitMutation,
@@ -54,7 +54,7 @@ export const VisitsPage = () => {
   const { pushToast } = useToastStore();
   const { data: allVisits = [] } = useAppointments();
   const { data: patients = [] } = usePatients();
-  const { mutate: saveAppointments } = useAppointmentsMutation();
+  const { mutate: upsertVisit } = useUpsertAppointmentMutation();
   const { mutate: markCompleted } = useMarkVisitCompletedMutation();
   const { mutate: deleteVisit } = useDeleteVisitMutation();
   const { mutate: duplicateVisit } = useDuplicateVisitMutation();
@@ -107,8 +107,7 @@ export const VisitsPage = () => {
   };
 
   const updateVisit = (updated: Appointment) => {
-    const base = allVisits.length > 0 ? allVisits : [updated];
-    saveAppointments(base.map((visit) => (visit.id === updated.id ? updated : visit)));
+    upsertVisit(updated);
   };
 
   return (

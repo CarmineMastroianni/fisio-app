@@ -7,20 +7,28 @@ import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { Drawer } from "../../components/ui/Drawer";
 import { EmptyState } from "../../components/ui/EmptyState";
-import { usePatients, usePatientsMutation } from "../../hooks/useData";
+import { usePatients, useCreatePatientMutation } from "../../hooks/useData";
 import type { ClinicalNotes, Patient } from "../../types";
 import { useToastStore } from "../../stores/toastStore";
 
-const patientSchema = z.object({
-  nome: z.string().min(2, "Inserisci il nome"),
-  cognome: z.string().min(2, "Inserisci il cognome"),
-  telefono: z.string().min(6, "Numero non valido"),
-  email: z.string().email("Email non valida"),
-  indirizzo: z.string().min(4, "Inserisci indirizzo"),
-  noteCliniche: z.string().min(2, "Inserisci una nota"),
-  noteLogistiche: z.string().optional(),
-  tags: z.string().optional(),
-});
+const patientSchema = z
+  .object({
+    nome: z.string(),
+    cognome: z.string(),
+    telefono: z.string(),
+    email: z.string().refine(
+      (value) => value.trim() === "" || z.string().email().safeParse(value).success,
+      { message: "Email non valida" }
+    ),
+    indirizzo: z.string(),
+    noteCliniche: z.string(),
+    noteLogistiche: z.string().optional(),
+    tags: z.string().optional(),
+  })
+  .refine((data) => Boolean(data.nome.trim() || data.cognome.trim()), {
+    message: "Inserisci almeno nome o cognome",
+    path: ["nome"],
+  });
 
 type PatientForm = z.infer<typeof patientSchema>;
 
@@ -34,18 +42,20 @@ const defaultClinicalNotes: ClinicalNotes = {
 export const PatientsPage = () => {
   const navigate = useNavigate();
   const { data: patients = [] } = usePatients();
-  const { mutate: savePatients } = usePatientsMutation();
+  const { mutate: createPatientMutate, isPending } = useCreatePatientMutation();
   const { pushToast } = useToastStore();
   const [query, setQuery] = useState("");
   const [openDrawer, setOpenDrawer] = useState(false);
 
-  const filteredPatients = useMemo(() => {
-    return patients.filter((patient) =>
-      `${patient.nome} ${patient.cognome} ${patient.telefono} ${patient.email} ${(patient.tags ?? []).join(" ")}`
-        .toLowerCase()
-        .includes(query.toLowerCase())
-    );
-  }, [patients, query]);
+  const filteredPatients = useMemo(
+    () =>
+      patients.filter((patient) =>
+        `${patient.nome} ${patient.cognome} ${patient.telefono} ${patient.email} ${(patient.tags ?? []).join(" ")}`
+          .toLowerCase()
+          .includes(query.toLowerCase())
+      ),
+    [patients, query]
+  );
 
   const {
     register,
@@ -58,20 +68,26 @@ export const PatientsPage = () => {
     const newPatient: Patient = {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
-      nome: data.nome,
-      cognome: data.cognome,
-      telefono: data.telefono,
-      email: data.email,
-      indirizzo: data.indirizzo,
-      noteCliniche: data.noteCliniche,
-      noteLogistiche: data.noteLogistiche || "",
+      nome: data.nome.trim(),
+      cognome: data.cognome.trim(),
+      telefono: data.telefono.trim(),
+      email: data.email.trim(),
+      indirizzo: data.indirizzo.trim(),
+      noteCliniche: data.noteCliniche.trim(),
+      noteLogistiche: data.noteLogistiche?.trim() || "",
       tags: data.tags ? data.tags.split(",").map((tag) => tag.trim()).filter(Boolean) : [],
       clinicalNotes: defaultClinicalNotes,
     };
-    savePatients([...patients, newPatient]);
-    setOpenDrawer(false);
-    reset();
-    pushToast({ title: "Paziente creato", tone: "success" });
+    createPatientMutate(newPatient, {
+      onSuccess: () => {
+        setOpenDrawer(false);
+        reset();
+        pushToast({ title: "Paziente creato", tone: "success" });
+      },
+      onError: () => {
+        pushToast({ title: "Errore nel salvataggio", tone: "error" });
+      },
+    });
   };
 
   return (
@@ -97,15 +113,22 @@ export const PatientsPage = () => {
               key={patient.id}
               className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:flex-row md:items-center md:justify-between"
             >
-              <button
-                onClick={() => navigate(`/patients/${patient.id}`)}
-                className="text-left"
-              >
-                <p className="text-sm font-semibold text-slate-800">{patient.nome} {patient.cognome}</p>
-                <p className="text-xs text-slate-500">{patient.telefono} · {patient.email}</p>
+              <button onClick={() => navigate(`/patients/${patient.id}`)} className="text-left">
+                <p className="text-sm font-semibold text-slate-800">
+                  {patient.nome} {patient.cognome}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {[patient.telefono, patient.email].filter(Boolean).join(" · ") || "Nessun contatto"}
+                </p>
               </button>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => navigate(`/patients/${patient.id}`, { state: { openNewVisit: true } })}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    navigate(`/patients/${patient.id}`, { state: { openNewVisit: true } })
+                  }
+                >
                   + Visita
                 </Button>
                 <Button size="sm" onClick={() => navigate(`/patients/${patient.id}`)}>
@@ -128,39 +151,68 @@ export const PatientsPage = () => {
           <div className="grid gap-3 md:grid-cols-2">
             <label className="text-xs font-semibold text-slate-500">
               Nome
-              <input {...register("nome")} className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm" />
+              <input
+                {...register("nome")}
+                className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm"
+              />
               {errors.nome ? <span className="text-xs text-rose-600">{errors.nome.message}</span> : null}
             </label>
             <label className="text-xs font-semibold text-slate-500">
               Cognome
-              <input {...register("cognome")} className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm" />
+              <input
+                {...register("cognome")}
+                className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm"
+              />
             </label>
             <label className="text-xs font-semibold text-slate-500">
               Telefono
-              <input {...register("telefono")} className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm" />
+              <input
+                {...register("telefono")}
+                className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm"
+              />
             </label>
             <label className="text-xs font-semibold text-slate-500">
               Email
-              <input {...register("email")} className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm" />
+              <input
+                {...register("email")}
+                className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm"
+              />
+              {errors.email ? <span className="text-xs text-rose-600">{errors.email.message}</span> : null}
             </label>
           </div>
           <label className="text-xs font-semibold text-slate-500">
             Indirizzo
-            <input {...register("indirizzo")} className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm" />
+            <input
+              {...register("indirizzo")}
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm"
+            />
           </label>
           <label className="text-xs font-semibold text-slate-500">
             Note cliniche (sintesi)
-            <textarea {...register("noteCliniche")} rows={3} className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm" />
+            <textarea
+              {...register("noteCliniche")}
+              rows={3}
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm"
+            />
           </label>
           <label className="text-xs font-semibold text-slate-500">
             Note logistiche
-            <textarea {...register("noteLogistiche")} rows={2} className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm" />
+            <textarea
+              {...register("noteLogistiche")}
+              rows={2}
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm"
+            />
           </label>
           <label className="text-xs font-semibold text-slate-500">
             Tag (separati da virgola)
-            <input {...register("tags")} className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm" />
+            <input
+              {...register("tags")}
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm"
+            />
           </label>
-          <Button type="submit">Salva paziente</Button>
+          <Button type="submit" disabled={isPending}>
+            {isPending ? "Salvataggio…" : "Salva paziente"}
+          </Button>
         </form>
       </Drawer>
     </div>

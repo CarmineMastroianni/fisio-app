@@ -1,649 +1,552 @@
-import { addDays, addHours, formatISO, isAfter } from "date-fns";
+import { addDays } from "date-fns";
+import { supabase } from "./supabase";
 import { getOutstandingAmount, getPaidAmount, getPaymentStatus } from "./payments";
 import type {
   Appointment,
   ClinicalNotes,
-  Database,
   Deposit,
   Patient,
   PatientDocument,
   Settings,
   VisitAttachment,
+  VisitFilters,
   VisitNotes,
   VisitPayment,
-  VisitFilters,
 } from "../types";
 
-const STORAGE_KEY = "fisio-db-v1";
+// ============================================================
+// MAPPING HELPERS  (DB snake_case ↔ TypeScript camelCase)
+// ============================================================
 
-const makeId = () => crypto.randomUUID();
-
-const toPaymentMethod = (value?: string) => {
-  if (!value) return undefined;
-  const lowered = value.toLowerCase();
-  if (lowered.includes("cont")) return "contanti";
-  if (lowered.includes("bon")) return "bonifico";
-  if (lowered.includes("pos") || lowered.includes("card")) return "pos";
-  return undefined;
-};
-
-const createSeedPatients = (): Patient[] => {
-  const baseDate = new Date();
-  return [
-    {
-      id: makeId(),
-      nome: "Giulia",
-      cognome: "Rossi",
-      telefono: "+39 348 1122334",
-      email: "giulia.rossi@email.it",
-      indirizzo: "Via Garibaldi 12, Milano",
-      noteCliniche: "Lombalgia cronica, miglioramento dopo ciclo precedente.",
-      noteLogistiche: "Scala B, citofono Rossi, parcheggio in via laterale.",
-      tags: ["posturale", "domicilio"],
-      clinicalNotes: {
-        problema: "Dolore lombare da postura sedentaria.",
-        obiettivi: "Riduzione dolore e aumento mobilità.",
-        esercizi: "Stretching catena posteriore, core stability.",
-        note: "Controllo settimanale con progressi costanti.",
-        updatedAt: formatISO(addDays(baseDate, -10)),
-      },
-      createdAt: formatISO(addDays(baseDate, -120)),
-    },
-    {
-      id: makeId(),
-      nome: "Marco",
-      cognome: "Bianchi",
-      telefono: "+39 333 5566778",
-      email: "marco.bianchi@email.it",
-      indirizzo: "Corso Europa 45, Milano",
-      noteCliniche: "Recupero post intervento spalla destra.",
-      noteLogistiche: "Secondo piano senza ascensore.",
-      tags: ["riabilitazione"],
-      clinicalNotes: {
-        problema: "Ridotta mobilità spalla destra post intervento.",
-        obiettivi: "Recupero range di movimento entro 6 settimane.",
-        esercizi: "Mobilizzazione passiva e attiva assistita.",
-        note: "Buona adesione agli esercizi domiciliari.",
-        updatedAt: formatISO(addDays(baseDate, -7)),
-      },
-      createdAt: formatISO(addDays(baseDate, -200)),
-    },
-    {
-      id: makeId(),
-      nome: "Elena",
-      cognome: "Sala",
-      telefono: "+39 320 9988776",
-      email: "elena.sala@email.it",
-      indirizzo: "Via dei Navigli 8, Milano",
-      noteCliniche: "Cervicalgia, consigliate sedute settimanali.",
-      noteLogistiche: "Portineria presente fino alle 18:00.",
-      tags: ["cervicale"],
-      clinicalNotes: {
-        problema: "Cervicalgia con rigidità mattutina.",
-        obiettivi: "Ridurre tensione e migliorare postura.",
-        esercizi: "Mobilità cervicale e respirazione diaframmatica.",
-        note: "Referisce beneficio dopo trattamento.",
-        updatedAt: formatISO(addDays(baseDate, -5)),
-      },
-      createdAt: formatISO(addDays(baseDate, -90)),
-    },
-    {
-      id: makeId(),
-      nome: "Paolo",
-      cognome: "Ferrari",
-      telefono: "+39 347 2233445",
-      email: "paolo.ferrari@email.it",
-      indirizzo: "Piazza Duomo 3, Milano",
-      noteCliniche: "Riabilitazione ginocchio post corsa.",
-      noteLogistiche: "Ingresso principale, interno 5.",
-      tags: ["sport"],
-      clinicalNotes: {
-        problema: "Infiammazione tendinea ginocchio.",
-        obiettivi: "Ritorno alla corsa senza dolore.",
-        esercizi: "Forza quadricipite e stabilità.",
-        note: "Sessioni ogni 10 giorni.",
-        updatedAt: formatISO(addDays(baseDate, -3)),
-      },
-      createdAt: formatISO(addDays(baseDate, -50)),
-    },
-    {
-      id: makeId(),
-      nome: "Sara",
-      cognome: "Galli",
-      telefono: "+39 351 7788990",
-      email: "sara.galli@email.it",
-      indirizzo: "Via Torino 21, Milano",
-      noteCliniche: "Trattamento posturale, miglioramento costante.",
-      noteLogistiche: "Citofono Galli, facile accesso.",
-      tags: ["posturale"],
-      clinicalNotes: {
-        problema: "Scompenso posturale e dolori diffusi.",
-        obiettivi: "Allineamento e gestione dolore.",
-        esercizi: "Allungamenti e rinforzo dorsale.",
-        note: "Programma mantenimento mensile.",
-        updatedAt: formatISO(addDays(baseDate, -2)),
-      },
-      createdAt: formatISO(addDays(baseDate, -30)),
-    },
-    {
-      id: makeId(),
-      nome: "Davide",
-      cognome: "Ricci",
-      telefono: "+39 329 1122777",
-      email: "davide.ricci@email.it",
-      indirizzo: "Via Marconi 9, Milano",
-      noteCliniche: "Contrattura lombare, sedute ogni 2 settimane.",
-      noteLogistiche: "Appartamento 12, ascensore disponibile.",
-      tags: ["domicilio"],
-      clinicalNotes: {
-        problema: "Contrattura lombare ricorrente.",
-        obiettivi: "Ridurre frequenza episodi.",
-        esercizi: "Mobilità lombare e core.",
-        note: "Preferisce sedute mattutine.",
-        updatedAt: formatISO(addDays(baseDate, -1)),
-      },
-      createdAt: formatISO(addDays(baseDate, -15)),
-    },
-  ];
-};
-
-const createSeedSettings = (): Settings => ({
-  tariffaStandard: 70,
-  trattamenti: [
-    { id: makeId(), nome: "Terapia manuale", durata: 60, costoDefault: 75 },
-    { id: makeId(), nome: "Rieducazione posturale", durata: 45, costoDefault: 65 },
-    { id: makeId(), nome: "Linfodrenaggio", durata: 50, costoDefault: 80 },
-    { id: makeId(), nome: "Riabilitazione sportiva", durata: 60, costoDefault: 85 },
-  ],
-  metodiPagamento: [
-    { id: makeId(), nome: "Contanti" },
-    { id: makeId(), nome: "POS" },
-    { id: makeId(), nome: "Bonifico" },
-  ],
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mapPatient = (row: any): Patient => ({
+  id: row.id as string,
+  nome: (row.nome as string) ?? "",
+  cognome: (row.cognome as string) ?? "",
+  telefono: (row.telefono as string) ?? "",
+  email: (row.email as string) ?? "",
+  indirizzo: (row.indirizzo as string) ?? "",
+  noteCliniche: (row.note_cliniche as string) ?? "",
+  noteLogistiche: (row.note_logistiche as string | undefined) ?? undefined,
+  tags: (row.tags as string[]) ?? [],
+  clinicalNotes: row.clinical_notes as ClinicalNotes | undefined,
+  createdAt: row.created_at as string,
 });
 
-const buildPayment = (paid: boolean, method?: string, amountPaid?: number, paidAt?: string): VisitPayment =>
-  paid
-    ? {
-        paid: true,
-        method: toPaymentMethod(method),
-        paidAt: paidAt ?? formatISO(new Date()),
-        amountPaid,
-      }
-    : { paid: false };
-
-const buildDeposit = (visitId: string, amount: number, method?: string, paidAt?: string, note?: string): Deposit => ({
-  id: makeId(),
-  visitId,
-  amount,
-  method: toPaymentMethod(method) ?? "contanti",
-  paidAt: paidAt ?? formatISO(new Date()),
-  note,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mapAppointment = (row: any): Appointment => ({
+  id: row.id as string,
+  patientId: row.patient_id as string,
+  start: row.start_time as string,
+  end: row.end_time as string,
+  luogo: (row.luogo as string) ?? "",
+  trattamento: (row.trattamento as string) ?? "",
+  costo: Number(row.costo),
+  totalAmount: row.total_amount != null ? Number(row.total_amount) : undefined,
+  status: (row.status as Appointment["status"]) ?? "programmata",
+  payment: (row.payment as VisitPayment) ?? { paid: false },
+  deposits: (row.deposits as Deposit[]) ?? [],
+  notes: row.notes as VisitNotes | undefined,
+  seriesId: row.series_id as string | undefined,
 });
 
-const createSeedAppointments = (patients: Patient[]): Appointment[] => {
-  const today = new Date();
-  const [giulia, marco, elena, paolo, sara, davide] = patients;
-  const giuliaVisitPaidId = makeId();
-  const giuliaVisitUnpaidId = makeId();
-  const giuliaVisitCompletedId = makeId();
-  const elenaVisitId = makeId();
-  const saraVisitId = makeId();
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mapDocument = (row: any): PatientDocument => ({
+  id: row.id as string,
+  patientId: row.patient_id as string,
+  name: row.name as string,
+  category: row.category as PatientDocument["category"],
+  uploadedAt: row.uploaded_at as string,
+  dataUrl: row.data_url as string | undefined,
+});
 
-  return [
-    {
-      id: giuliaVisitPaidId,
-      patientId: giulia.id,
-      start: formatISO(addDays(today, -3)),
-      end: formatISO(addHours(addDays(today, -3), 1)),
-      luogo: giulia.indirizzo,
-      trattamento: "Terapia manuale",
-      costo: 75,
-      totalAmount: 75,
-      status: "completata",
-      payment: buildPayment(true, "POS", 75, formatISO(addDays(today, -3))),
-      deposits: [buildDeposit(giuliaVisitPaidId, 75, "POS", formatISO(addDays(today, -3)))],
-      notes: {
-        subjective: "Dolore lombare ridotto, rigidità al mattino.",
-        objective: "Mobilità migliorata, tensione lombare moderata.",
-        assessment: "Progressi costanti con esercizi assegnati.",
-        plan: "Continuare core stability + seduta tra 10 giorni.",
-      },
-    },
-    {
-      id: giuliaVisitUnpaidId,
-      patientId: giulia.id,
-      start: formatISO(addHours(today, 2)),
-      end: formatISO(addHours(today, 3)),
-      luogo: giulia.indirizzo,
-      trattamento: "Rieducazione posturale",
-      costo: 65,
-      totalAmount: 65,
-      status: "programmata",
-      payment: buildPayment(false),
-      deposits: [],
-    },
-    {
-      id: giuliaVisitCompletedId,
-      patientId: giulia.id,
-      start: formatISO(addDays(today, -12)),
-      end: formatISO(addHours(addDays(today, -12), 1)),
-      luogo: giulia.indirizzo,
-      trattamento: "Terapia manuale",
-      costo: 75,
-      totalAmount: 75,
-      status: "completata",
-      payment: buildPayment(false),
-      deposits: [buildDeposit(giuliaVisitCompletedId, 30, "Contanti", formatISO(addDays(today, -12)), "Acconto iniziale")],
-    },
-    {
-      id: makeId(),
-      patientId: marco.id,
-      start: formatISO(addHours(today, 4)),
-      end: formatISO(addHours(today, 5)),
-      luogo: marco.indirizzo,
-      trattamento: "Riabilitazione sportiva",
-      costo: 85,
-      totalAmount: 85,
-      status: "programmata",
-      payment: buildPayment(false),
-      deposits: [],
-    },
-    {
-      id: elenaVisitId,
-      patientId: elena.id,
-      start: formatISO(addDays(today, 1)),
-      end: formatISO(addHours(addDays(today, 1), 1)),
-      luogo: elena.indirizzo,
-      trattamento: "Rieducazione posturale",
-      costo: 65,
-      totalAmount: 65,
-      status: "programmata",
-      payment: buildPayment(true, "Contanti", 65, formatISO(addDays(today, 1))),
-      deposits: [buildDeposit(elenaVisitId, 65, "Contanti", formatISO(addDays(today, 1)))],
-    },
-    {
-      id: makeId(),
-      patientId: paolo.id,
-      start: formatISO(addDays(today, 2)),
-      end: formatISO(addHours(addDays(today, 2), 1)),
-      luogo: paolo.indirizzo,
-      trattamento: "Riabilitazione sportiva",
-      costo: 85,
-      totalAmount: 85,
-      status: "programmata",
-      payment: buildPayment(false),
-      deposits: [],
-    },
-    {
-      id: saraVisitId,
-      patientId: sara.id,
-      start: formatISO(addDays(today, -2)),
-      end: formatISO(addHours(addDays(today, -2), 1)),
-      luogo: sara.indirizzo,
-      trattamento: "Linfodrenaggio",
-      costo: 80,
-      totalAmount: 80,
-      status: "completata",
-      payment: buildPayment(true, "Contanti", 80, formatISO(addDays(today, -2))),
-      deposits: [buildDeposit(saraVisitId, 80, "Contanti", formatISO(addDays(today, -2)))],
-    },
-    {
-      id: makeId(),
-      patientId: davide.id,
-      start: formatISO(addDays(today, -5)),
-      end: formatISO(addHours(addDays(today, -5), 1)),
-      luogo: davide.indirizzo,
-      trattamento: "Terapia manuale",
-      costo: 75,
-      totalAmount: 75,
-      status: "completata",
-      payment: buildPayment(false),
-      deposits: [],
-    },
-  ];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mapAttachment = (row: any): VisitAttachment => ({
+  id: row.id as string,
+  visitId: row.visit_id as string,
+  name: row.name as string,
+  category: row.category as VisitAttachment["category"],
+  uploadedAt: row.uploaded_at as string,
+  dataUrl: row.data_url as string | undefined,
+});
+
+const appointmentToRow = (apt: Appointment) => ({
+  id: apt.id,
+  patient_id: apt.patientId,
+  start_time: apt.start,
+  end_time: apt.end,
+  luogo: apt.luogo,
+  trattamento: apt.trattamento,
+  costo: apt.costo,
+  total_amount: apt.totalAmount ?? apt.costo,
+  status: apt.status,
+  payment: apt.payment ?? { paid: false },
+  deposits: apt.deposits ?? [],
+  notes: apt.notes ?? null,
+  series_id: apt.seriesId ?? null,
+});
+
+// ============================================================
+// PATIENTS
+// ============================================================
+
+export const getPatients = async (): Promise<Patient[]> => {
+  const { data, error } = await supabase
+    .from("patients")
+    .select("*")
+    .order("cognome")
+    .order("nome");
+  if (error) throw error;
+  return (data ?? []).map(mapPatient);
 };
 
-const createSeedDocuments = (patients: Patient[]): PatientDocument[] => [
-  {
-    id: makeId(),
-    patientId: patients[0]?.id ?? "",
-    name: "Referto controllo lombare.pdf",
-    category: "referto",
-    uploadedAt: formatISO(addDays(new Date(), -30)),
-    dataUrl: undefined,
-  },
-];
-
-const createSeedVisitAttachments = (appointments: Appointment[]): VisitAttachment[] => [
-  {
-    id: makeId(),
-    visitId: appointments[0]?.id ?? "",
-    name: "Esercizi_lombalgia.pdf",
-    category: "esercizi",
-    uploadedAt: formatISO(addDays(new Date(), -3)),
-    dataUrl: undefined,
-  },
-];
-
-const seedDatabase = (): Database => {
-  const patients = createSeedPatients();
-  const appointments = createSeedAppointments(patients);
-  return {
-    patients,
-    appointments,
-    settings: createSeedSettings(),
-    documents: createSeedDocuments(patients),
-    visitAttachments: createSeedVisitAttachments(appointments),
-  };
+export const getPatientById = async (patientId: string): Promise<Patient | null> => {
+  const { data, error } = await supabase
+    .from("patients")
+    .select("*")
+    .eq("id", patientId)
+    .single();
+  if (error) return null;
+  return mapPatient(data);
 };
 
-const normalizeAppointment = (appointment: Appointment): Appointment => {
-  const legacy = appointment as Appointment & {
-    pagata?: boolean;
-    metodoPagamento?: string;
-    paidAt?: string;
-    stato?: Appointment["status"];
-  };
-  const totalAmount = appointment.totalAmount ?? appointment.costo;
-  const hasDeposits = appointment.deposits && appointment.deposits.length > 0;
-  const paidAmountFromPayment = appointment.payment?.amountPaid ?? (legacy.pagata ? totalAmount : 0);
-  const shouldCreateDeposit =
-    !hasDeposits && (legacy.pagata || appointment.payment?.paid || paidAmountFromPayment > 0);
-  const deposits = (hasDeposits
-    ? appointment.deposits
-    : shouldCreateDeposit
-      ? [
-          buildDeposit(
-            appointment.id,
-            paidAmountFromPayment || totalAmount,
-            appointment.payment?.method ?? legacy.metodoPagamento,
-            appointment.payment?.paidAt ?? legacy.paidAt ?? appointment.end
-          ),
-        ]
-      : []) ?? [];
-  const paidAmount = deposits.reduce((sum, deposit) => sum + deposit.amount, 0);
-  const lastDeposit = deposits.length ? deposits[deposits.length - 1] : undefined;
+export const createPatient = async (patient: Patient): Promise<Patient> => {
+  const { data, error } = await supabase
+    .from("patients")
+    .insert({
+      id: patient.id,
+      nome: patient.nome,
+      cognome: patient.cognome,
+      telefono: patient.telefono,
+      email: patient.email,
+      indirizzo: patient.indirizzo,
+      note_cliniche: patient.noteCliniche,
+      note_logistiche: patient.noteLogistiche ?? null,
+      tags: patient.tags ?? [],
+      clinical_notes: patient.clinicalNotes ?? null,
+      created_at: patient.createdAt,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return mapPatient(data);
+};
+
+export const updatePatient = async (patient: Patient): Promise<Patient> => {
+  const { data, error } = await supabase
+    .from("patients")
+    .update({
+      nome: patient.nome,
+      cognome: patient.cognome,
+      telefono: patient.telefono,
+      email: patient.email,
+      indirizzo: patient.indirizzo,
+      note_cliniche: patient.noteCliniche,
+      note_logistiche: patient.noteLogistiche ?? null,
+      tags: patient.tags ?? [],
+      clinical_notes: patient.clinicalNotes ?? null,
+    })
+    .eq("id", patient.id)
+    .select()
+    .single();
+  if (error) throw error;
+  return mapPatient(data);
+};
+
+/** @deprecated Usa createPatient o updatePatient */
+export const setPatients = async (patients: Patient[]): Promise<void> => {
+  const rows = patients.map((p) => ({
+    id: p.id,
+    nome: p.nome,
+    cognome: p.cognome,
+    telefono: p.telefono,
+    email: p.email,
+    indirizzo: p.indirizzo,
+    note_cliniche: p.noteCliniche,
+    note_logistiche: p.noteLogistiche ?? null,
+    tags: p.tags ?? [],
+    clinical_notes: p.clinicalNotes ?? null,
+    created_at: p.createdAt,
+  }));
+  const { error } = await supabase.from("patients").upsert(rows);
+  if (error) throw error;
+};
+
+export const updatePatientNotes = async (patientId: string, notes: ClinicalNotes): Promise<Patient | null> => {
+  const { data, error } = await supabase
+    .from("patients")
+    .update({ clinical_notes: { ...notes, updatedAt: new Date().toISOString() } })
+    .eq("id", patientId)
+    .select()
+    .single();
+  if (error) return null;
+  return mapPatient(data);
+};
+
+// ============================================================
+// APPOINTMENTS
+// ============================================================
+
+export const getAppointments = async (): Promise<Appointment[]> => {
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("*")
+    .order("start_time");
+  if (error) throw error;
+  return (data ?? []).map(mapAppointment);
+};
+
+export const getVisitsByPatientId = async (patientId: string): Promise<Appointment[]> => {
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("*")
+    .eq("patient_id", patientId)
+    .order("start_time", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapAppointment);
+};
+
+export const getVisitById = async (visitId: string): Promise<Appointment | null> => {
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("*")
+    .eq("id", visitId)
+    .single();
+  if (error) return null;
+  return mapAppointment(data);
+};
+
+export const upsertAppointment = async (appointment: Appointment): Promise<Appointment> => {
+  const { data, error } = await supabase
+    .from("appointments")
+    .upsert(appointmentToRow(appointment))
+    .select()
+    .single();
+  if (error) throw error;
+  return mapAppointment(data);
+};
+
+export const createAppointments = async (appointments: Appointment[]): Promise<void> => {
+  const { error } = await supabase
+    .from("appointments")
+    .insert(appointments.map(appointmentToRow));
+  if (error) throw error;
+};
+
+/** @deprecated Usa upsertAppointment o createAppointments */
+export const setAppointments = async (appointments: Appointment[]): Promise<void> => {
+  const { error } = await supabase
+    .from("appointments")
+    .upsert(appointments.map(appointmentToRow));
+  if (error) throw error;
+};
+
+export const updateVisitNotes = async (visitId: string, notes: VisitNotes): Promise<void> => {
+  const { error } = await supabase
+    .from("appointments")
+    .update({ notes })
+    .eq("id", visitId);
+  if (error) throw error;
+};
+
+export const updateVisitPayment = async (visitId: string, payment: VisitPayment): Promise<void> => {
+  const { error } = await supabase
+    .from("appointments")
+    .update({ payment })
+    .eq("id", visitId);
+  if (error) throw error;
+};
+
+export const addDeposit = async (visitId: string, deposit: Deposit): Promise<void> => {
+  const { data: row, error: fetchError } = await supabase
+    .from("appointments")
+    .select("deposits, costo, total_amount")
+    .eq("id", visitId)
+    .single();
+  if (fetchError) throw fetchError;
+
+  const deposits = [...((row.deposits as Deposit[]) ?? []), deposit];
+  const totalAmount = Number(row.total_amount ?? row.costo);
+  const paidAmount = deposits.reduce((sum, d) => sum + d.amount, 0);
   const payment: VisitPayment = {
-    paid: paidAmount >= totalAmount && totalAmount > 0,
-    method: lastDeposit?.method ?? appointment.payment?.method ?? toPaymentMethod(legacy.metodoPagamento),
-    paidAt: lastDeposit?.paidAt ?? appointment.payment?.paidAt ?? legacy.paidAt,
-    amountPaid: paidAmount > 0 ? paidAmount : appointment.payment?.amountPaid,
-  };
-  return {
-    ...appointment,
-    status: legacy.stato ?? appointment.status ?? "programmata",
-    totalAmount,
-    payment,
-    deposits,
-  };
-};
-
-const normalizeDatabase = (db: Database): Database => {
-  const normalized: Database = {
-    ...db,
-    settings: db.settings ?? createSeedSettings(),
-    documents: (db.documents ?? []).map((doc) => ({
-      id: doc.id,
-      patientId: doc.patientId,
-      name: doc.name,
-      category: doc.category ?? "altro",
-      uploadedAt: doc.uploadedAt ?? (doc as { createdAt?: string }).createdAt ?? formatISO(new Date()),
-      dataUrl: doc.dataUrl,
-    })),
-    visitAttachments: db.visitAttachments ?? [],
-    appointments: (db.appointments ?? []).map(normalizeAppointment),
+    paid: totalAmount > 0 && paidAmount >= totalAmount,
+    method: deposit.method,
+    paidAt: deposit.paidAt,
+    amountPaid: paidAmount,
   };
 
-  if (!normalized.visitAttachments.length) {
-    normalized.visitAttachments = createSeedVisitAttachments(normalized.appointments);
-  }
-
-  return normalized;
+  const { error } = await supabase
+    .from("appointments")
+    .update({ deposits, payment })
+    .eq("id", visitId);
+  if (error) throw error;
 };
 
-export const loadDatabase = (): Database => {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    const seed = seedDatabase();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
-    return seed;
-  }
-  try {
-    const parsed = JSON.parse(raw) as Database;
-    const normalized = normalizeDatabase(parsed);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
-    return normalized;
-  } catch {
-    const seed = seedDatabase();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
-    return seed;
-  }
+export const removeDeposit = async (visitId: string, depositId: string): Promise<void> => {
+  const { data: row, error: fetchError } = await supabase
+    .from("appointments")
+    .select("deposits, costo, total_amount")
+    .eq("id", visitId)
+    .single();
+  if (fetchError) throw fetchError;
+
+  const deposits = ((row.deposits as Deposit[]) ?? []).filter((d) => d.id !== depositId);
+  const totalAmount = Number(row.total_amount ?? row.costo);
+  const paidAmount = deposits.reduce((sum, d) => sum + d.amount, 0);
+  const lastDeposit = deposits[deposits.length - 1];
+  const payment: VisitPayment = {
+    paid: totalAmount > 0 && paidAmount >= totalAmount,
+    method: lastDeposit?.method,
+    paidAt: lastDeposit?.paidAt,
+    amountPaid: paidAmount > 0 ? paidAmount : undefined,
+  };
+
+  const { error } = await supabase
+    .from("appointments")
+    .update({ deposits, payment })
+    .eq("id", visitId);
+  if (error) throw error;
 };
 
-export const saveDatabase = (db: Database) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+export const updateVisitStatus = async (visitId: string, status: Appointment["status"]): Promise<void> => {
+  const { error } = await supabase
+    .from("appointments")
+    .update({ status })
+    .eq("id", visitId);
+  if (error) throw error;
 };
 
-export const getPatients = (): Patient[] => loadDatabase().patients;
-
-export const getPatientById = (patientId: string) =>
-  getPatients().find((patient) => patient.id === patientId) ?? null;
-
-export const setPatients = (patients: Patient[]) => {
-  const db = loadDatabase();
-  db.patients = patients;
-  saveDatabase(db);
+export const updateVisitDateTime = async (visitId: string, start: string, end: string): Promise<void> => {
+  const { error } = await supabase
+    .from("appointments")
+    .update({ start_time: start, end_time: end })
+    .eq("id", visitId);
+  if (error) throw error;
 };
 
-export const getAppointments = (): Appointment[] => loadDatabase().appointments;
-
-export const getVisitsByPatientId = (patientId: string) =>
-  getAppointments().filter((appointment) => appointment.patientId === patientId);
-
-export const getVisitById = (visitId: string) =>
-  getAppointments().find((appointment) => appointment.id === visitId) ?? null;
-
-export const setAppointments = (appointments: Appointment[]) => {
-  const db = loadDatabase();
-  db.appointments = appointments.map(normalizeAppointment);
-  saveDatabase(db);
+export const markVisitCompleted = async (visitId: string): Promise<void> => {
+  const { error } = await supabase
+    .from("appointments")
+    .update({ status: "completata" })
+    .eq("id", visitId);
+  if (error) throw error;
 };
 
-export const migrateLegacyVisits = () => {
-  const db = loadDatabase();
-  db.appointments = db.appointments.map(normalizeAppointment);
-  saveDatabase(db);
+export const deleteVisit = async (visitId: string): Promise<void> => {
+  const { error } = await supabase
+    .from("appointments")
+    .delete()
+    .eq("id", visitId);
+  if (error) throw error;
 };
 
-export const updateVisitNotes = (visitId: string, notes: VisitNotes) => {
-  const db = loadDatabase();
-  db.appointments = db.appointments.map((visit) =>
-    visit.id === visitId ? { ...visit, notes } : visit
-  );
-  saveDatabase(db);
-};
-
-export const updateVisitPayment = (visitId: string, payment: VisitPayment) => {
-  const db = loadDatabase();
-  db.appointments = db.appointments.map((visit) =>
-    visit.id === visitId ? normalizeAppointment({ ...visit, payment }) : visit
-  );
-  saveDatabase(db);
-};
-
-export const addDeposit = (visitId: string, deposit: Deposit) => {
-  const db = loadDatabase();
-  db.appointments = db.appointments.map((visit) => {
-    if (visit.id !== visitId) return visit;
-    const deposits = [...(visit.deposits ?? []), deposit];
-    return normalizeAppointment({ ...visit, deposits });
-  });
-  saveDatabase(db);
-};
-
-export const removeDeposit = (visitId: string, depositId: string) => {
-  const db = loadDatabase();
-  db.appointments = db.appointments.map((visit) => {
-    if (visit.id !== visitId) return visit;
-    const deposits = (visit.deposits ?? []).filter((item) => item.id !== depositId);
-    return normalizeAppointment({ ...visit, deposits });
-  });
-  saveDatabase(db);
-};
-
-export const updateVisitStatus = (visitId: string, status: Appointment["status"]) => {
-  const db = loadDatabase();
-  db.appointments = db.appointments.map((visit) =>
-    visit.id === visitId ? { ...visit, status } : visit
-  );
-  saveDatabase(db);
-};
-
-export const updateVisitDateTime = (visitId: string, start: string, end: string) => {
-  const db = loadDatabase();
-  db.appointments = db.appointments.map((visit) =>
-    visit.id === visitId ? { ...visit, start, end } : visit
-  );
-  saveDatabase(db);
-};
-
-export const markVisitCompleted = (visitId: string) => {
-  const db = loadDatabase();
-  db.appointments = db.appointments.map((visit) =>
-    visit.id === visitId ? { ...visit, status: "completata" } : visit
-  );
-  saveDatabase(db);
-};
-
-export const deleteVisit = (visitId: string) => {
-  const db = loadDatabase();
-  db.appointments = db.appointments.filter((visit) => visit.id !== visitId);
-  saveDatabase(db);
-};
-
-export const duplicateVisit = (visitId: string) => {
-  const db = loadDatabase();
-  const original = db.appointments.find((visit) => visit.id === visitId);
+export const duplicateVisit = async (visitId: string): Promise<Appointment | null> => {
+  const original = await getVisitById(visitId);
   if (!original) return null;
   const copy: Appointment = {
     ...original,
-    id: makeId(),
+    id: crypto.randomUUID(),
     status: "programmata",
     payment: { paid: false },
     deposits: [],
     totalAmount: original.totalAmount ?? original.costo,
   };
-  db.appointments = [...db.appointments, copy];
-  saveDatabase(db);
-  return copy;
+  return upsertAppointment(copy);
 };
 
-export const listVisits = (filters: VisitFilters) => {
+export const listVisits = async (filters: VisitFilters): Promise<Appointment[]> => {
   const { period, status, paid, patientId, query, startDate, endDate } = filters;
+  const now = new Date();
+
+  let queryBuilder = supabase.from("appointments").select("*");
+
+  if (status !== "all") {
+    queryBuilder = queryBuilder.eq("status", status);
+  }
+  if (patientId) {
+    queryBuilder = queryBuilder.eq("patient_id", patientId);
+  }
+  if (period === "today") {
+    const startOfDay = new Date(now.toDateString()).toISOString();
+    const endOfDay = addDays(new Date(now.toDateString()), 1).toISOString();
+    queryBuilder = queryBuilder.gte("start_time", startOfDay).lt("start_time", endOfDay);
+  } else if (period === "week") {
+    queryBuilder = queryBuilder.gte("start_time", addDays(now, -7).toISOString());
+  } else if (period === "month") {
+    queryBuilder = queryBuilder.gte("start_time", addDays(now, -30).toISOString());
+  } else if (period === "custom") {
+    if (startDate) queryBuilder = queryBuilder.gte("start_time", new Date(startDate).toISOString());
+    if (endDate) queryBuilder = queryBuilder.lt("start_time", addDays(new Date(endDate), 1).toISOString());
+  }
+
+  const { data, error } = await queryBuilder.order("start_time", { ascending: false });
+  if (error) throw error;
+
+  let appointments = (data ?? []).map(mapAppointment);
+
+  // Payment filter (client-side — dipende da deposits JSON)
+  if (paid !== "all") {
+    appointments = appointments.filter((v) =>
+      paid === "paid" ? getPaymentStatus(v) === "paid" : getPaymentStatus(v) !== "paid"
+    );
+  }
+
+  // Text search: include anche nome/cognome paziente
   const normalizedQuery = query?.toLowerCase().trim() ?? "";
-  const patientMap = new Map(getPatients().map((patient) => [patient.id, patient]));
+  if (normalizedQuery) {
+    const patients = await getPatients();
+    const patientMap = new Map(patients.map((p) => [p.id, p]));
+    appointments = appointments.filter((v) => {
+      const p = patientMap.get(v.patientId);
+      const blob = `${v.trattamento} ${v.luogo} ${p?.nome ?? ""} ${p?.cognome ?? ""} ${p?.indirizzo ?? ""}`.toLowerCase();
+      return blob.includes(normalizedQuery);
+    });
+  }
 
-  return getAppointments().filter((visit) => {
-    const patient = patientMap.get(visit.patientId);
-    const patientBlob = patient ? `${patient.nome} ${patient.cognome} ${patient.indirizzo}` : "";
-    const visitDate = new Date(visit.start);
-    const now = new Date();
-    const matchesPeriod =
-      period === "all" ||
-      (period === "today" && visitDate.toDateString() === now.toDateString()) ||
-      (period === "week" && visitDate >= addDays(now, -7)) ||
-      (period === "month" && visitDate >= addDays(now, -30)) ||
-      (period === "custom" &&
-        (!startDate || visitDate >= new Date(startDate)) &&
-        (!endDate || visitDate <= addDays(new Date(endDate), 1)));
+  return appointments;
+};
 
-    const matchesStatus = status === "all" || visit.status === status;
-    const matchesPaid =
-      paid === "all" || (paid === "paid" ? getPaymentStatus(visit) === "paid" : getPaymentStatus(visit) !== "paid");
-    const matchesPatient = !patientId || visit.patientId === patientId;
+// ============================================================
+// SETTINGS
+// ============================================================
 
-    const matchesQuery =
-      !normalizedQuery ||
-      `${visit.trattamento} ${visit.luogo} ${patientBlob}`.toLowerCase().includes(normalizedQuery);
+const DEFAULT_SETTINGS: Settings = {
+  tariffaStandard: 70,
+  trattamenti: [
+    { id: crypto.randomUUID(), nome: "Terapia manuale", durata: 60, costoDefault: 75 },
+    { id: crypto.randomUUID(), nome: "Rieducazione posturale", durata: 45, costoDefault: 65 },
+    { id: crypto.randomUUID(), nome: "Rieducazione funzionale", durata: 50, costoDefault: 80 },
+    { id: crypto.randomUUID(), nome: "Riabilitazione sportiva", durata: 60, costoDefault: 85 },
+  ],
+  metodiPagamento: [
+    { id: crypto.randomUUID(), nome: "Contanti" },
+    { id: crypto.randomUUID(), nome: "POS" },
+    { id: crypto.randomUUID(), nome: "Bonifico" },
+  ],
+};
 
-    return matchesPeriod && matchesStatus && matchesPaid && matchesPatient && matchesQuery;
+export const getSettings = async (): Promise<Settings> => {
+  const { data, error } = await supabase.from("settings").select("*").maybeSingle();
+  if (error || !data) return DEFAULT_SETTINGS;
+  return {
+    tariffaStandard: Number(data.tariffa_standard),
+    trattamenti: (data.trattamenti as Settings["trattamenti"]) ?? DEFAULT_SETTINGS.trattamenti,
+    metodiPagamento: (data.metodi_pagamento as Settings["metodiPagamento"]) ?? DEFAULT_SETTINGS.metodiPagamento,
+  };
+};
+
+export const setSettings = async (settings: Settings): Promise<void> => {
+  const { data: authData } = await supabase.auth.getUser();
+  const userId = authData.user?.id;
+  if (!userId) throw new Error("Non autenticato");
+
+  const { error } = await supabase.from("settings").upsert({
+    user_id: userId,
+    tariffa_standard: settings.tariffaStandard,
+    trattamenti: settings.trattamenti,
+    metodi_pagamento: settings.metodiPagamento,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "user_id" });
+  if (error) throw error;
+};
+
+// ============================================================
+// PATIENT DOCUMENTS
+// ============================================================
+
+export const getDocumentsByPatient = async (patientId: string): Promise<PatientDocument[]> => {
+  const { data, error } = await supabase
+    .from("patient_documents")
+    .select("*")
+    .eq("patient_id", patientId)
+    .order("uploaded_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapDocument);
+};
+
+export const addPatientDocument = async (document: PatientDocument): Promise<void> => {
+  const { error } = await supabase.from("patient_documents").insert({
+    id: document.id,
+    patient_id: document.patientId,
+    name: document.name,
+    category: document.category,
+    uploaded_at: document.uploadedAt,
+    data_url: document.dataUrl ?? null,
   });
+  if (error) throw error;
 };
 
-export const getSettings = (): Settings => loadDatabase().settings;
-
-export const setSettings = (settings: Settings) => {
-  const db = loadDatabase();
-  db.settings = settings;
-  saveDatabase(db);
+export const removePatientDocument = async (documentId: string): Promise<void> => {
+  const { error } = await supabase.from("patient_documents").delete().eq("id", documentId);
+  if (error) throw error;
 };
 
-export const getDocumentsByPatient = (patientId: string) =>
-  loadDatabase().documents.filter((document) => document.patientId === patientId);
+// ============================================================
+// VISIT ATTACHMENTS
+// ============================================================
 
-export const addPatientDocument = (document: PatientDocument) => {
-  const db = loadDatabase();
-  db.documents = [...db.documents, document];
-  saveDatabase(db);
+export const getVisitAttachments = async (visitId: string): Promise<VisitAttachment[]> => {
+  const { data, error } = await supabase
+    .from("visit_attachments")
+    .select("*")
+    .eq("visit_id", visitId)
+    .order("uploaded_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapAttachment);
 };
 
-export const removePatientDocument = (documentId: string) => {
-  const db = loadDatabase();
-  db.documents = db.documents.filter((document) => document.id !== documentId);
-  saveDatabase(db);
+export const getVisitAttachmentsByPatientId = async (patientId: string): Promise<VisitAttachment[]> => {
+  const visits = await getVisitsByPatientId(patientId);
+  const visitIds = visits.map((v) => v.id);
+  if (visitIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("visit_attachments")
+    .select("*")
+    .in("visit_id", visitIds)
+    .order("uploaded_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapAttachment);
 };
 
-export const getVisitAttachments = (visitId: string) =>
-  loadDatabase().visitAttachments.filter((attachment) => attachment.visitId === visitId);
-
-export const getVisitAttachmentsByPatientId = (patientId: string) => {
-  const visitIds = getVisitsByPatientId(patientId).map((visit) => visit.id);
-  return loadDatabase().visitAttachments.filter((attachment) => visitIds.includes(attachment.visitId));
+export const addVisitAttachment = async (attachment: VisitAttachment): Promise<void> => {
+  const { error } = await supabase.from("visit_attachments").insert({
+    id: attachment.id,
+    visit_id: attachment.visitId,
+    name: attachment.name,
+    category: attachment.category,
+    uploaded_at: attachment.uploadedAt,
+    data_url: attachment.dataUrl ?? null,
+  });
+  if (error) throw error;
 };
 
-export const addVisitAttachment = (attachment: VisitAttachment) => {
-  const db = loadDatabase();
-  db.visitAttachments = [...db.visitAttachments, attachment];
-  saveDatabase(db);
+export const removeVisitAttachment = async (attachmentId: string): Promise<void> => {
+  const { error } = await supabase.from("visit_attachments").delete().eq("id", attachmentId);
+  if (error) throw error;
 };
 
-export const removeVisitAttachment = (attachmentId: string) => {
-  const db = loadDatabase();
-  db.visitAttachments = db.visitAttachments.filter((attachment) => attachment.id !== attachmentId);
-  saveDatabase(db);
-};
+// ============================================================
+// PATIENT KPI
+// ============================================================
 
-export const updatePatientNotes = (patientId: string, notes: ClinicalNotes) => {
-  const db = loadDatabase();
-  db.patients = db.patients.map((patient) =>
-    patient.id === patientId
-      ? {
-          ...patient,
-          clinicalNotes: { ...notes, updatedAt: formatISO(new Date()) },
-          noteCliniche: notes.note || patient.noteCliniche,
-        }
-      : patient
-  );
-  saveDatabase(db);
-  return db.patients.find((patient) => patient.id === patientId) ?? null;
-};
-
-export const computePatientKpi = (patientId: string) => {
-  const visits = getVisitsByPatientId(patientId);
+export const computePatientKpi = async (patientId: string) => {
+  const visits = await getVisitsByPatientId(patientId);
+  const now = new Date();
   const nextVisit = visits
-    .filter((visit) => isAfter(new Date(visit.start), new Date()))
+    .filter((v) => new Date(v.start) > now)
     .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())[0];
   const outstandingTotal = visits
-    .filter((visit) => getPaymentStatus(visit) !== "paid")
-    .reduce((sum, visit) => sum + getOutstandingAmount(visit), 0);
+    .filter((v) => getPaymentStatus(v) !== "paid")
+    .reduce((sum, v) => sum + getOutstandingAmount(v), 0);
   const paidTotal = visits
-    .filter((visit) => getPaymentStatus(visit) === "paid")
-    .reduce((sum, visit) => sum + getPaidAmount(visit), 0);
-
+    .filter((v) => getPaymentStatus(v) === "paid")
+    .reduce((sum, v) => sum + getPaidAmount(v), 0);
   return { nextVisit, outstandingTotal, paidTotal };
 };
 
-export const ensureSeed = () => {
-  loadDatabase();
-};
+// ============================================================
+// COMPAT / LEGACY (no-op con Supabase)
+// ============================================================
+export const ensureSeed = (): void => { /* no-op con Supabase */ };
+export const migrateLegacyVisits = async (): Promise<void> => { /* no-op con Supabase */ };

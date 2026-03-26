@@ -13,6 +13,16 @@ import { useAuthStore } from "./stores/authStore";
 
 export default function App() {
   const session = useAuthStore((state) => state.session);
+  const loading = useAuthStore((state) => state.loading);
+
+  // Mostra spinner globale solo al primissimo caricamento
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-sand-50">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-600 border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <Routes>

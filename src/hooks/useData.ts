@@ -3,10 +3,12 @@ import {
   addDeposit,
   addPatientDocument,
   addVisitAttachment,
+  createAppointments,
+  createPatient,
   deleteVisit,
+  duplicateVisit,
   computePatientKpi,
   getAppointments,
-  listVisits,
   getDocumentsByPatient,
   getPatientById,
   getPatients,
@@ -15,18 +17,18 @@ import {
   getVisitAttachmentsByPatientId,
   getVisitById,
   getVisitsByPatientId,
-  removePatientDocument,
-  removeVisitAttachment,
-  duplicateVisit,
+  listVisits,
   markVisitCompleted,
   removeDeposit,
-  setAppointments,
-  setPatients,
+  removePatientDocument,
+  removeVisitAttachment,
   setSettings,
+  updatePatient,
   updateVisitDateTime,
   updateVisitNotes,
   updateVisitPayment,
   updateVisitStatus,
+  upsertAppointment,
 } from "../lib/storage";
 import type {
   Appointment,
@@ -35,96 +37,124 @@ import type {
   PatientDocument,
   Settings,
   VisitAttachment,
+  VisitFilters,
   VisitNotes,
   VisitPayment,
-  VisitFilters,
 } from "../types";
+
+// ============================================================
+// QUERY HOOKS
+// ============================================================
 
 export const usePatients = () =>
   useQuery({
     queryKey: ["patients"],
-    queryFn: async () => getPatients(),
+    queryFn: () => getPatients(),
   });
 
 export const usePatient = (patientId?: string) =>
   useQuery({
     queryKey: ["patients", patientId],
-    queryFn: async () => (patientId ? getPatientById(patientId) : null),
+    queryFn: () => (patientId ? getPatientById(patientId) : null),
     enabled: Boolean(patientId),
   });
 
 export const useAppointments = () =>
   useQuery({
     queryKey: ["appointments"],
-    queryFn: async () => getAppointments(),
+    queryFn: () => getAppointments(),
   });
 
 export const useVisitsList = (filters: VisitFilters) =>
   useQuery({
     queryKey: ["appointments", "list", filters],
-    queryFn: async () => listVisits(filters),
+    queryFn: () => listVisits(filters),
   });
 
 export const useVisitsByPatient = (patientId?: string) =>
   useQuery({
-    queryKey: ["appointments", patientId],
-    queryFn: async () => (patientId ? getVisitsByPatientId(patientId) : []),
+    queryKey: ["appointments", "patient", patientId],
+    queryFn: () => (patientId ? getVisitsByPatientId(patientId) : []),
     enabled: Boolean(patientId),
   });
 
 export const useVisit = (visitId?: string) =>
   useQuery({
-    queryKey: ["appointments", visitId],
-    queryFn: async () => (visitId ? getVisitById(visitId) : null),
+    queryKey: ["appointments", "single", visitId],
+    queryFn: () => (visitId ? getVisitById(visitId) : null),
     enabled: Boolean(visitId),
   });
 
 export const usePatientKpi = (patientId?: string) =>
   useQuery({
     queryKey: ["patient-kpi", patientId],
-    queryFn: async () => (patientId ? computePatientKpi(patientId) : null),
+    queryFn: () => (patientId ? computePatientKpi(patientId) : null),
     enabled: Boolean(patientId),
   });
 
 export const useSettings = () =>
   useQuery({
     queryKey: ["settings"],
-    queryFn: async () => getSettings(),
+    queryFn: () => getSettings(),
   });
 
 export const useDocuments = (patientId?: string) =>
   useQuery({
     queryKey: ["documents", patientId],
-    queryFn: async () => (patientId ? getDocumentsByPatient(patientId) : []),
+    queryFn: () => (patientId ? getDocumentsByPatient(patientId) : []),
     enabled: Boolean(patientId),
   });
 
 export const useVisitAttachments = (visitId?: string) =>
   useQuery({
     queryKey: ["visit-attachments", visitId],
-    queryFn: async () => (visitId ? getVisitAttachments(visitId) : []),
+    queryFn: () => (visitId ? getVisitAttachments(visitId) : []),
     enabled: Boolean(visitId),
   });
 
 export const useVisitAttachmentsByPatient = (patientId?: string) =>
   useQuery({
     queryKey: ["visit-attachments", "patient", patientId],
-    queryFn: async () => (patientId ? getVisitAttachmentsByPatientId(patientId) : []),
+    queryFn: () => (patientId ? getVisitAttachmentsByPatientId(patientId) : []),
     enabled: Boolean(patientId),
   });
 
-export const usePatientsMutation = () => {
+// ============================================================
+// PATIENT MUTATIONS
+// ============================================================
+
+export const useCreatePatientMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (patients: Patient[]) => setPatients(patients),
+    mutationFn: (patient: Patient) => createPatient(patient),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["patients"], exact: false }),
   });
 };
 
-export const useAppointmentsMutation = () => {
+export const useUpdatePatientMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (appointments: Appointment[]) => setAppointments(appointments),
+    mutationFn: (patient: Patient) => updatePatient(patient),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["patients"], exact: false }),
+  });
+};
+
+// ============================================================
+// APPOINTMENT MUTATIONS
+// ============================================================
+
+export const useUpsertAppointmentMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (appointment: Appointment) => upsertAppointment(appointment),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
+  });
+};
+
+export const useCreateAppointmentsMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (appointments: Appointment[]) => createAppointments(appointments),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
   });
 };
@@ -132,7 +162,7 @@ export const useAppointmentsMutation = () => {
 export const useSettingsMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (settings: Settings) => setSettings(settings),
+    mutationFn: (settings: Settings) => setSettings(settings),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["settings"] }),
   });
 };
@@ -140,7 +170,7 @@ export const useSettingsMutation = () => {
 export const useAddDocumentMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (document: PatientDocument) => addPatientDocument(document),
+    mutationFn: (document: PatientDocument) => addPatientDocument(document),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["documents"], exact: false }),
   });
 };
@@ -148,7 +178,7 @@ export const useAddDocumentMutation = () => {
 export const useRemoveDocumentMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { id: string; patientId: string }) => removePatientDocument(payload.id),
+    mutationFn: (payload: { id: string; patientId: string }) => removePatientDocument(payload.id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["documents"], exact: false }),
   });
 };
@@ -156,7 +186,7 @@ export const useRemoveDocumentMutation = () => {
 export const useAddVisitAttachmentMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (attachment: VisitAttachment) => addVisitAttachment(attachment),
+    mutationFn: (attachment: VisitAttachment) => addVisitAttachment(attachment),
     onSuccess: (_data, variables) =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: ["visit-attachments", variables.visitId] }),
@@ -168,7 +198,7 @@ export const useAddVisitAttachmentMutation = () => {
 export const useRemoveVisitAttachmentMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { id: string; visitId: string }) => removeVisitAttachment(payload.id),
+    mutationFn: (payload: { id: string; visitId: string }) => removeVisitAttachment(payload.id),
     onSuccess: (_data, variables) =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: ["visit-attachments", variables.visitId] }),
@@ -180,104 +210,77 @@ export const useRemoveVisitAttachmentMutation = () => {
 export const useUpdateVisitNotesMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { visitId: string; notes: VisitNotes }) =>
+    mutationFn: (payload: { visitId: string; notes: VisitNotes }) =>
       updateVisitNotes(payload.visitId, payload.notes),
-    onSuccess: (_data, variables) =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["appointments"] }),
-        queryClient.invalidateQueries({ queryKey: ["appointments", variables.visitId] }),
-      ]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
   });
 };
 
 export const useUpdateVisitPaymentMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { visitId: string; payment: VisitPayment }) =>
+    mutationFn: (payload: { visitId: string; payment: VisitPayment }) =>
       updateVisitPayment(payload.visitId, payload.payment),
-    onSuccess: (_data, variables) =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["appointments"] }),
-        queryClient.invalidateQueries({ queryKey: ["appointments", variables.visitId] }),
-      ]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
   });
 };
 
 export const useAddDepositMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { visitId: string; deposit: Deposit }) =>
+    mutationFn: (payload: { visitId: string; deposit: Deposit }) =>
       addDeposit(payload.visitId, payload.deposit),
-    onSuccess: (_data, variables) =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["appointments"] }),
-        queryClient.invalidateQueries({ queryKey: ["appointments", variables.visitId] }),
-      ]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
   });
 };
 
 export const useRemoveDepositMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { visitId: string; depositId: string }) =>
+    mutationFn: (payload: { visitId: string; depositId: string }) =>
       removeDeposit(payload.visitId, payload.depositId),
-    onSuccess: (_data, variables) =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["appointments"] }),
-        queryClient.invalidateQueries({ queryKey: ["appointments", variables.visitId] }),
-      ]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
   });
 };
 
 export const useUpdateVisitStatusMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { visitId: string; status: Appointment["status"] }) =>
+    mutationFn: (payload: { visitId: string; status: Appointment["status"] }) =>
       updateVisitStatus(payload.visitId, payload.status),
-    onSuccess: (_data, variables) =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["appointments"] }),
-        queryClient.invalidateQueries({ queryKey: ["appointments", variables.visitId] }),
-      ]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
   });
 };
 
 export const useUpdateVisitDateTimeMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { visitId: string; start: string; end: string }) =>
+    mutationFn: (payload: { visitId: string; start: string; end: string }) =>
       updateVisitDateTime(payload.visitId, payload.start, payload.end),
-    onSuccess: (_data, variables) =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["appointments"] }),
-        queryClient.invalidateQueries({ queryKey: ["appointments", variables.visitId] }),
-      ]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
   });
 };
 
 export const useMarkVisitCompletedMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (visitId: string) => markVisitCompleted(visitId),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
+    mutationFn: (visitId: string) => markVisitCompleted(visitId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
   });
 };
 
 export const useDeleteVisitMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (visitId: string) => deleteVisit(visitId),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
+    mutationFn: (visitId: string) => deleteVisit(visitId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
   });
 };
 
 export const useDuplicateVisitMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (visitId: string) => duplicateVisit(visitId),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
+    mutationFn: (visitId: string) => duplicateVisit(visitId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
   });
 };

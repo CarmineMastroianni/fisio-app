@@ -8,12 +8,13 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import {
   useAddDepositMutation,
   useAddVisitAttachmentMutation,
-  useAppointments,
-  useAppointmentsMutation,
+  useDeleteVisitMutation,
+  useDuplicateVisitMutation,
   usePatient,
   useRemoveDepositMutation,
   useRemoveVisitAttachmentMutation,
   useUpdateVisitNotesMutation,
+  useUpsertAppointmentMutation,
   useVisitAttachments,
   useVisit,
 } from "../../hooks/useData";
@@ -30,9 +31,10 @@ export const VisitDetailPage = () => {
   const { pushToast } = useToastStore();
   const { data: visit } = useVisit(visitId);
   const { data: patient } = usePatient(id);
-  const { data: appointments = [] } = useAppointments();
   const { data: attachments = [] } = useVisitAttachments(visitId);
-  const { mutate: saveAppointments } = useAppointmentsMutation();
+  const { mutate: upsertVisit } = useUpsertAppointmentMutation();
+  const { mutate: deleteVisitMutate } = useDeleteVisitMutation();
+  const { mutate: duplicateMutate } = useDuplicateVisitMutation();
   const { mutate: updateNotes } = useUpdateVisitNotesMutation();
   const { mutate: addDeposit } = useAddDepositMutation();
   const { mutate: removeDeposit } = useRemoveDepositMutation();
@@ -52,31 +54,24 @@ export const VisitDetailPage = () => {
   }, [visit]);
 
   const updateVisit = (updated: Appointment) => {
-    const base = appointments.length > 0 ? appointments : [updated];
-    saveAppointments(base.map((apt) => (apt.id === updated.id ? updated : apt)));
+    upsertVisit(updated);
   };
 
   const duplicateVisit = () => {
     if (!visit) return;
-    const clone: Appointment = {
-      ...visit,
-      id: crypto.randomUUID(),
-      status: "programmata",
-      payment: { paid: false },
-      deposits: [],
-      totalAmount: visit.totalAmount ?? visit.costo,
-    };
-    const base = appointments.length > 0 ? appointments : [visit];
-    saveAppointments([...base, clone]);
-    pushToast({ title: "Visita duplicata", tone: "success" });
+    duplicateMutate(visit.id, {
+      onSuccess: () => pushToast({ title: "Visita duplicata", tone: "success" }),
+    });
   };
 
   const deleteVisit = () => {
     if (!visit) return;
-    const base = appointments.length > 0 ? appointments : [visit];
-    saveAppointments(base.filter((apt) => apt.id !== visit.id));
-    pushToast({ title: "Visita eliminata", tone: "info" });
-    navigate(`/patients/${visit.patientId}`);
+    deleteVisitMutate(visit.id, {
+      onSuccess: () => {
+        pushToast({ title: "Visita eliminata", tone: "info" });
+        navigate(`/patients/${visit.patientId}`);
+      },
+    });
   };
 
   const onFileUpload = async (file: File) => {

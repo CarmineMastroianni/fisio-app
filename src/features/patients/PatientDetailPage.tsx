@@ -9,25 +9,27 @@ import { Button } from "../../components/Button";
 import { Drawer } from "../../components/ui/Drawer";
 import { EmptyState } from "../../components/ui/EmptyState";
 import {
+  useAddDepositMutation,
   useAddDocumentMutation,
-  useAppointmentsMutation,
-  useAppointments,
+  useDeleteVisitMutation,
   useDocuments,
+  useDuplicateVisitMutation,
+  useMarkVisitCompletedMutation,
   usePatient,
-  usePatients,
-  usePatientsMutation,
   usePatientKpi,
   useRemoveDocumentMutation,
   useSettings,
+  useUpdatePatientMutation,
+  useUpsertAppointmentMutation,
   useVisitAttachmentsByPatient,
   useVisitsByPatient,
 } from "../../hooks/useData";
 import { formatCurrency, formatDate, formatDateTime } from "../../lib/utils";
 import { getOutstandingAmount, getPaidAmount, getPaymentStatus } from "../../lib/payments";
-import type { Appointment, Patient, PatientDocument, Settings, VisitAttachment, VisitPayment } from "../../types";
+import type { Appointment, Deposit, Patient, PatientDocument, PaymentMethodType, Settings, VisitAttachment } from "../../types";
 import { useToastStore } from "../../stores/toastStore";
 
-const paymentMethodOptions: VisitPayment["method"][] = ["contanti", "bonifico", "pos"];
+const paymentMethodOptions: PaymentMethodType[] = ["contanti", "bonifico", "pos"];
 
 const statusLabels: Record<string, string> = {
   programmata: "Programmata",
@@ -43,7 +45,21 @@ type DrawerState =
   | { type: "edit-patient" }
   | { type: "new-visit" }
   | { type: "mark-paid"; visitId: string }
+  | { type: "mark-all-paid" }
   | null;
+
+type PaymentEntry = {
+  method: PaymentMethodType;
+  paidAt: string;
+  amount: number;
+  note?: string;
+};
+
+type FinalPaymentEntry = {
+  method: PaymentMethodType;
+  paidAt: string;
+  note?: string;
+};
 
 export const PatientDetailPage = () => {
   const { id } = useParams();
@@ -51,15 +67,17 @@ export const PatientDetailPage = () => {
   const navigate = useNavigate();
   const { pushToast } = useToastStore();
   const { data: patient } = usePatient(id);
-  const { data: allPatients = [] } = usePatients();
-  const { data: allAppointments = [] } = useAppointments();
   const { data: visits = [] } = useVisitsByPatient(id);
   const { data: settings } = useSettings();
   const { data: kpi } = usePatientKpi(id);
   const { data: documents = [] } = useDocuments(id);
   const { data: visitAttachments = [] } = useVisitAttachmentsByPatient(id);
-  const { mutate: savePatients } = usePatientsMutation();
-  const { mutate: saveVisits } = useAppointmentsMutation();
+  const { mutate: updatePatientMutate } = useUpdatePatientMutation();
+  const { mutate: upsertVisit } = useUpsertAppointmentMutation();
+  const { mutate: deleteVisitMutate } = useDeleteVisitMutation();
+  const { mutate: addDepositMutate } = useAddDepositMutation();
+  const { mutate: markCompletedMutate } = useMarkVisitCompletedMutation();
+  const { mutate: duplicateMutate } = useDuplicateVisitMutation();
 
   const [drawer, setDrawer] = useState<DrawerState>(null);
   const [activeTab, setActiveTab] = useState("overview");
@@ -90,48 +108,64 @@ export const PatientDetailPage = () => {
   }
 
   const updatePatient = (updated: Patient) => {
-    savePatients(allPatients.map((p) => (p.id === updated.id ? updated : p)));
+    updatePatientMutate(updated);
   };
 
-  const updateVisit = (updated: Appointment) => {
-    const base = allAppointments.length > 0 ? allAppointments : visits;
-    saveVisits(base.map((visit) => (visit.id === updated.id ? updated : visit)));
-  };
-
-  const markVisitPaid = (visitId: string, payment: VisitPayment) => {
-    const target = visits.find((visit) => visit.id === visitId);
+  const markVisitPaid = (visitId: string, payment: PaymentEntry) => {
+    const target = visits.find((v) => v.id === visitId);
     if (!target) return;
-    updateVisit({ ...target, payment });
-    pushToast({ title: "Pagamento registrato", tone: "success" });
+    const remaining = getOutstandingAmount(target);
+    const amount = Math.min(payment.amount, remaining);
+    if (amount <= 0) return;
+    const deposit: Deposit = {
+      id: crypto.randomUUID(),
+      visitId: target.id,
+      amount,
+      method: payment.method,
+      paidAt: payment.paidAt,
+      note: payment.note,
+    };
+    addDepositMutate({ visitId: target.id, deposit }, {
+      onSuccess: () =>
+        pushToast({ title: amount < remaining ? "Acconto registrato" : "Pagamento registrato", tone: "success" }),
+    });
+  };
+
+  const markAllVisitsPaid = (payment: FinalPaymentEntry) => {
+    const outstandingVisits = visits.filter((v) => getOutstandingAmount(v) > 0);
+    if (outstandingVisits.length === 0) return;
+    outstandingVisits.forEach((visit) => {
+      const outstanding = getOutstandingAmount(visit);
+      if (outstanding <= 0) return;
+      const deposit: Deposit = {
+        id: crypto.randomUUID(),
+        visitId: visit.id,
+        amount: outstanding,
+        method: payment.method,
+        paidAt: payment.paidAt,
+        note: payment.note || "Saldo finale",
+      };
+      addDepositMutate({ visitId: visit.id, deposit });
+    });
+    pushToast({ title: "Saldo finale registrato", tone: "success" });
   };
 
   const markVisitCompleted = (visitId: string) => {
-    const target = visits.find((visit) => visit.id === visitId);
-    if (!target) return;
-    updateVisit({ ...target, status: "completata" });
-    pushToast({ title: "Visita completata", tone: "success" });
+    markCompletedMutate(visitId, {
+      onSuccess: () => pushToast({ title: "Visita completata", tone: "success" }),
+    });
   };
 
   const duplicateVisit = (visitId: string) => {
-    const original = visits.find((visit) => visit.id === visitId);
-    if (!original) return;
-    const clone: Appointment = {
-      ...original,
-      id: crypto.randomUUID(),
-      payment: { paid: false },
-      deposits: [],
-      totalAmount: original.totalAmount ?? original.costo,
-      status: "programmata",
-    };
-    const base = allAppointments.length > 0 ? allAppointments : visits;
-    saveVisits([...base, clone]);
-    pushToast({ title: "Visita duplicata", tone: "success" });
+    duplicateMutate(visitId, {
+      onSuccess: () => pushToast({ title: "Visita duplicata", tone: "success" }),
+    });
   };
 
   const deleteVisit = (visitId: string) => {
-    const base = allAppointments.length > 0 ? allAppointments : visits;
-    saveVisits(base.filter((visit) => visit.id !== visitId));
-    pushToast({ title: "Visita eliminata", tone: "info" });
+    deleteVisitMutate(visitId, {
+      onSuccess: () => pushToast({ title: "Visita eliminata", tone: "info" }),
+    });
   };
 
   const tabs = [
@@ -174,6 +208,7 @@ export const PatientDetailPage = () => {
         <PaymentsTab
           visits={sortedVisits}
           onMarkPaid={(visitId) => setDrawer({ type: "mark-paid", visitId })}
+          onMarkAllPaid={() => setDrawer({ type: "mark-all-paid" })}
         />
       ),
     },
@@ -193,7 +228,7 @@ export const PatientDetailPage = () => {
     {
       id: "notes",
       label: "Note cliniche",
-      content: <NotesTab patient={patient} allPatients={allPatients} onSave={savePatients} />,
+      content: <NotesTab patient={patient} onSave={updatePatient} />,
     },
   ];
 
@@ -213,19 +248,27 @@ export const PatientDetailPage = () => {
               ))}
             </div>
             <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-              <span className="inline-flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {patient.telefono}</span>
-              <span className="inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> {patient.email}</span>
+              {patient.telefono ? (
+                <span className="inline-flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {patient.telefono}</span>
+              ) : null}
+              {patient.email ? (
+                <span className="inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> {patient.email}</span>
+              ) : null}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={() => setDrawer({ type: "new-visit" })}><Plus className="mr-2 h-4 w-4" /> Nuova visita</Button>
             <Button size="sm" variant="outline" onClick={() => setDrawer({ type: "edit-patient" })}><Pencil className="mr-2 h-4 w-4" /> Modifica</Button>
-            <a className="inline-flex items-center justify-center rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50" href={`tel:${patient.telefono}`}>
-              <Phone className="mr-2 h-4 w-4" /> Chiama
-            </a>
-            <a className="inline-flex items-center justify-center rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50" href={buildMapsUrl(patient.indirizzo)} target="_blank" rel="noreferrer">
-              <MapPin className="mr-2 h-4 w-4" /> Maps
-            </a>
+            {patient.telefono ? (
+              <a className="inline-flex items-center justify-center rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50" href={`tel:${patient.telefono}`}>
+                <Phone className="mr-2 h-4 w-4" /> Chiama
+              </a>
+            ) : null}
+            {patient.indirizzo ? (
+              <a className="inline-flex items-center justify-center rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50" href={buildMapsUrl(patient.indirizzo)} target="_blank" rel="noreferrer">
+                <MapPin className="mr-2 h-4 w-4" /> Maps
+              </a>
+            ) : null}
           </div>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -261,10 +304,12 @@ export const PatientDetailPage = () => {
             patient={patient}
             settings={settings}
             onSave={(visit) => {
-              const base = allAppointments.length > 0 ? allAppointments : visits;
-              saveVisits([...base, visit]);
-              setDrawer(null);
-              pushToast({ title: "Visita pianificata", tone: "success" });
+              upsertVisit(visit, {
+                onSuccess: () => {
+                  setDrawer(null);
+                  pushToast({ title: "Visita pianificata", tone: "success" });
+                },
+              });
             }}
           />
         ) : null}
@@ -276,6 +321,18 @@ export const PatientDetailPage = () => {
             visit={visits.find((visit) => visit.id === drawer.visitId) ?? null}
             onConfirm={(payment) => {
               markVisitPaid(drawer.visitId, payment);
+              setDrawer(null);
+            }}
+          />
+        ) : null}
+      </Drawer>
+
+      <Drawer open={drawer?.type === "mark-all-paid"} title="Saldo finale" onClose={() => setDrawer(null)}>
+        {drawer?.type === "mark-all-paid" ? (
+          <MarkAllPaidForm
+            visits={sortedVisits}
+            onConfirm={(payment) => {
+              markAllVisitsPaid(payment);
               setDrawer(null);
             }}
           />
@@ -364,11 +421,13 @@ const OverviewTab = ({
 
     <Card>
       <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Logistica</p>
-      <p className="mt-2 text-sm text-slate-700">{patient.indirizzo}</p>
+      <p className="mt-2 text-sm text-slate-700">{patient.indirizzo || "Indirizzo non inserito"}</p>
       <p className="mt-2 text-xs text-slate-500">{patient.noteLogistiche || "Nessuna nota logistica."}</p>
-      <a className="mt-3 inline-flex text-xs font-semibold text-teal-600" href={buildMapsUrl(patient.indirizzo)} target="_blank" rel="noreferrer">
-        Apri Maps
-      </a>
+      {patient.indirizzo ? (
+        <a className="mt-3 inline-flex text-xs font-semibold text-teal-600" href={buildMapsUrl(patient.indirizzo)} target="_blank" rel="noreferrer">
+          Apri Maps
+        </a>
+      ) : null}
     </Card>
   </div>
 );
@@ -482,10 +541,11 @@ const VisitsTab = ({ visits, onOpen, onDuplicate, onMarkCompleted, onMarkPaid, o
 type PaymentsTabProps = {
   visits: Appointment[];
   onMarkPaid: (visitId: string) => void;
+  onMarkAllPaid: () => void;
 };
 
-const PaymentsTab = ({ visits, onMarkPaid }: PaymentsTabProps) => {
-  const unpaid = visits.filter((visit) => getPaymentStatus(visit) !== "paid");
+const PaymentsTab = ({ visits, onMarkPaid, onMarkAllPaid }: PaymentsTabProps) => {
+  const unpaid = visits.filter((visit) => getOutstandingAmount(visit) > 0);
   const paid = visits.filter((visit) => getPaymentStatus(visit) === "paid");
   const totalUnpaid = unpaid.reduce((sum, visit) => sum + getOutstandingAmount(visit), 0);
   const totalPaid = paid.reduce((sum, visit) => sum + getPaidAmount(visit), 0);
@@ -523,7 +583,12 @@ const PaymentsTab = ({ visits, onMarkPaid }: PaymentsTabProps) => {
               Insoluti: {formatCurrency(totalUnpaid)}
             </span>
           </div>
-          <Button size="sm" variant="ghost" onClick={downloadCsv}>Esporta CSV</Button>
+          <div className="flex flex-wrap gap-2">
+            {unpaid.length > 0 ? (
+              <Button size="sm" onClick={onMarkAllPaid}>Saldo finale</Button>
+            ) : null}
+            <Button size="sm" variant="ghost" onClick={downloadCsv}>Esporta CSV</Button>
+          </div>
         </div>
       </Card>
 
@@ -703,46 +768,56 @@ const DocumentsTab = ({ patientId, documents, visitAttachments, visits, onOpenVi
 
 type NotesTabProps = {
   patient: Patient;
-  allPatients: Patient[];
-  onSave: (patients: Patient[]) => void;
+  onSave: (patient: Patient) => void;
 };
 
-const NotesTab = ({ patient, allPatients, onSave }: NotesTabProps) => {
+const NotesTab = ({ patient, onSave }: NotesTabProps) => {
   const { pushToast } = useToastStore();
-  const didMount = useRef(false);
-  const [notes, setNotes] = useState({
+  const skipNextAutosave = useRef(true);
+  const onSaveRef = useRef(onSave);
+  const syncedNotes = useMemo(() => ({
     problema: patient.clinicalNotes?.problema ?? "",
     obiettivi: patient.clinicalNotes?.obiettivi ?? "",
     esercizi: patient.clinicalNotes?.esercizi ?? "",
     note: patient.clinicalNotes?.note ?? patient.noteCliniche,
-  });
+  }), [
+    patient.clinicalNotes?.problema,
+    patient.clinicalNotes?.obiettivi,
+    patient.clinicalNotes?.esercizi,
+    patient.clinicalNotes?.note,
+    patient.noteCliniche,
+  ]);
+  const syncedSignature = JSON.stringify(syncedNotes);
+  const [notes, setNotes] = useState(syncedNotes);
 
   useEffect(() => {
-    setNotes({
-      problema: patient.clinicalNotes?.problema ?? "",
-      obiettivi: patient.clinicalNotes?.obiettivi ?? "",
-      esercizi: patient.clinicalNotes?.esercizi ?? "",
-      note: patient.clinicalNotes?.note ?? patient.noteCliniche,
-    });
-    didMount.current = false;
-  }, [patient]);
+    onSaveRef.current = onSave;
+  }, [onSave]);
 
   useEffect(() => {
-    if (!didMount.current) {
-      didMount.current = true;
+    skipNextAutosave.current = true;
+    setNotes(syncedNotes);
+  }, [syncedNotes]);
+
+  useEffect(() => {
+    if (skipNextAutosave.current) {
+      skipNextAutosave.current = false;
       return;
     }
+
+    if (JSON.stringify(notes) === syncedSignature) return;
+
     const timer = setTimeout(() => {
       const updated: Patient = {
         ...patient,
         clinicalNotes: { ...notes, updatedAt: new Date().toISOString() },
         noteCliniche: notes.note,
       };
-      onSave(allPatients.map((p) => (p.id === patient.id ? updated : p)));
+      onSaveRef.current(updated);
       pushToast({ title: "Note aggiornate", tone: "success" });
     }, 900);
     return () => clearTimeout(timer);
-  }, [notes, patient, onSave, allPatients, pushToast]);
+  }, [notes, patient, pushToast, syncedSignature]);
 
   const applyTemplate = (template: "Lombalgia" | "Spalla" | "Ginocchio") => {
     const templates = {
@@ -970,43 +1045,50 @@ const NewVisitForm = ({ patient, settings, onSave }: NewVisitFormProps) => {
 
 type MarkPaidFormProps = {
   visit: Appointment | null;
-  onConfirm: (payment: VisitPayment) => void;
+  onConfirm: (payment: PaymentEntry) => void;
 };
 
 const MarkPaidForm = ({ visit, onConfirm }: MarkPaidFormProps) => {
-  const [method, setMethod] = useState<VisitPayment["method"]>("contanti");
+  const [method, setMethod] = useState<PaymentMethodType>("contanti");
   const [paidAt, setPaidAt] = useState(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
-  const [amount, setAmount] = useState(visit?.totalAmount ?? visit?.costo ?? 0);
+  const [amount, setAmount] = useState(0);
 
   useEffect(() => {
     if (!visit) return;
-    setAmount(visit.totalAmount ?? visit.costo);
+    setAmount(getOutstandingAmount(visit));
     setMethod(visit.payment.method ?? "contanti");
   }, [visit]);
 
   if (!visit) return <p className="text-sm text-slate-500">Visita non trovata.</p>;
+
+  const outstanding = getOutstandingAmount(visit);
+
+  if (outstanding <= 0) {
+    return <p className="text-sm text-slate-500">Questa visita risulta gia saldata.</p>;
+  }
 
   return (
     <form
       className="space-y-3"
       onSubmit={(event) => {
         event.preventDefault();
+        const normalizedAmount = Math.min(Math.max(amount, 0), outstanding);
+        if (!normalizedAmount) return;
         onConfirm({
-          paid: true,
           method,
           paidAt: new Date(paidAt).toISOString(),
-          amountPaid: amount,
+          amount: normalizedAmount,
         });
       }}
     >
       <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
         <p className="font-semibold">{visit.trattamento}</p>
         <p className="text-xs">{formatDateTime(visit.start)}</p>
-        <p className="text-xs">Costo: {formatCurrency(visit.totalAmount ?? visit.costo)}</p>
+        <p className="text-xs">Residuo: {formatCurrency(outstanding)}</p>
       </div>
       <label className="text-xs font-semibold text-slate-500">
         Metodo pagamento
-        <select value={method} onChange={(event) => setMethod(event.target.value as VisitPayment["method"])} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm">
+        <select value={method} onChange={(event) => setMethod(event.target.value as PaymentMethodType)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm">
           {paymentMethodOptions.map((option) => (
             <option key={option} value={option}>{option}</option>
           ))}
@@ -1018,9 +1100,85 @@ const MarkPaidForm = ({ visit, onConfirm }: MarkPaidFormProps) => {
       </label>
       <label className="text-xs font-semibold text-slate-500">
         Importo pagato
-        <input type="number" value={amount} onChange={(event) => setAmount(Number(event.target.value))} className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm" />
+        <input type="number" min={0} max={outstanding} value={amount} onChange={(event) => setAmount(Number(event.target.value))} className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm" />
       </label>
       <Button type="submit">Conferma pagamento</Button>
+    </form>
+  );
+};
+
+type MarkAllPaidFormProps = {
+  visits: Appointment[];
+  onConfirm: (payment: FinalPaymentEntry) => void;
+};
+
+const MarkAllPaidForm = ({ visits, onConfirm }: MarkAllPaidFormProps) => {
+  const outstandingVisits = useMemo(
+    () => visits.filter((visit) => getOutstandingAmount(visit) > 0),
+    [visits]
+  );
+  const totalOutstanding = useMemo(
+    () => outstandingVisits.reduce((sum, visit) => sum + getOutstandingAmount(visit), 0),
+    [outstandingVisits]
+  );
+  const [method, setMethod] = useState<PaymentMethodType>("contanti");
+  const [paidAt, setPaidAt] = useState(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
+  const [note, setNote] = useState("Saldo finale");
+
+  if (outstandingVisits.length === 0) {
+    return <p className="text-sm text-slate-500">Non ci sono insoluti da saldare.</p>;
+  }
+
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onConfirm({
+          method,
+          paidAt: new Date(paidAt).toISOString(),
+          note: note.trim() || undefined,
+        });
+      }}
+    >
+      <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+        <p className="font-semibold">Saldo totale da registrare</p>
+        <p className="mt-1 text-lg font-semibold text-slate-900">{formatCurrency(totalOutstanding)}</p>
+        <p className="text-xs">{outstandingVisits.length} visite con residuo</p>
+      </div>
+
+      <div className="max-h-48 space-y-2 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3">
+        {outstandingVisits.map((visit) => (
+          <div key={visit.id} className="flex items-center justify-between gap-3 text-sm">
+            <div>
+              <p className="font-medium text-slate-700">{visit.trattamento}</p>
+              <p className="text-xs text-slate-500">{formatDateTime(visit.start)}</p>
+            </div>
+            <span className="font-semibold text-rose-600">{formatCurrency(getOutstandingAmount(visit))}</span>
+          </div>
+        ))}
+      </div>
+
+      <label className="text-xs font-semibold text-slate-500">
+        Metodo pagamento
+        <select value={method} onChange={(event) => setMethod(event.target.value as PaymentMethodType)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm">
+          {paymentMethodOptions.map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </select>
+      </label>
+
+      <label className="text-xs font-semibold text-slate-500">
+        Data incasso
+        <input type="datetime-local" value={paidAt} onChange={(event) => setPaidAt(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm" />
+      </label>
+
+      <label className="text-xs font-semibold text-slate-500">
+        Nota
+        <input value={note} onChange={(event) => setNote(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm" placeholder="Saldo finale" />
+      </label>
+
+      <Button type="submit">Conferma saldo finale</Button>
     </form>
   );
 };

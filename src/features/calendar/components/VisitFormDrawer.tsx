@@ -10,7 +10,7 @@ import type { Appointment, Patient, Settings, VisitNotes } from "../../../types"
 
 const recurrenceSchema = z.object({
   enabled: z.boolean(),
-  pattern: z.enum(["none", "weekly", "monthly", "yearly"]),
+  pattern: z.enum(["none", "daily", "weekly", "monthly", "yearly"]),
   count: z.coerce.number().min(1).max(24),
 });
 
@@ -43,7 +43,7 @@ type VisitFormDrawerProps = {
   onSave: (payload: {
     appointment: Appointment;
     scope: "single" | "series";
-    recurrence: { pattern: "none" | "weekly" | "monthly" | "yearly"; count: number };
+    recurrence: { pattern: "none" | "daily" | "weekly" | "monthly" | "yearly"; count: number };
   }) => void;
   onDelete?: () => void;
 };
@@ -215,6 +215,7 @@ export const VisitFormDrawer = ({
                   {...register("recurrence.pattern")}
                   className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm"
                 >
+                  <option value="daily">Giornaliera</option>
                   <option value="weekly">Settimanale</option>
                   <option value="monthly">Mensile</option>
                   <option value="yearly">Annuale</option>
