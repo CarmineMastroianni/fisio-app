@@ -55,10 +55,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       options: {
         scopes: "https://www.googleapis.com/auth/calendar.events",
         redirectTo: window.location.origin,
-        queryParams: {
-          access_type: "online",
-          prompt: "consent",
-        },
       },
     });
   },

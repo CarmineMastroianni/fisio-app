@@ -211,6 +211,7 @@ export const useUpsertAppointmentMutation = () => {
       await queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false });
 
       const settings = queryClient.getQueryData<Settings>(["settings", sessionId]);
+      console.debug("[CalendarSync] googleCalendarEnabled:", settings?.googleCalendarEnabled, "| providerToken:", !!providerToken);
       if (!settings?.googleCalendarEnabled) return;
 
       if (!providerToken) {

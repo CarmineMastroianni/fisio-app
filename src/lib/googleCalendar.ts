@@ -18,18 +18,24 @@ export const createCalendarEvent = async (
   patientName: string
 ): Promise<string | null> => {
   try {
+    const body = buildEventBody(appointment, patientName);
     const res = await fetch(CALENDAR_API, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(buildEventBody(appointment, patientName)),
+      body: JSON.stringify(body),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error("[GoogleCalendar] createEvent failed", res.status, err);
+      return null;
+    }
     const data = (await res.json()) as { id: string };
     return data.id;
-  } catch {
+  } catch (e) {
+    console.error("[GoogleCalendar] createEvent exception", e);
     return null;
   }
 };
@@ -41,7 +47,7 @@ export const updateCalendarEvent = async (
   patientName: string
 ): Promise<void> => {
   try {
-    await fetch(`${CALENDAR_API}/${googleEventId}`, {
+    const res = await fetch(`${CALENDAR_API}/${googleEventId}`, {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -49,8 +55,12 @@ export const updateCalendarEvent = async (
       },
       body: JSON.stringify(buildEventBody(appointment, patientName)),
     });
-  } catch {
-    // silenzioso: il calendario Google non è critico
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error("[GoogleCalendar] updateEvent failed", res.status, err);
+    }
+  } catch (e) {
+    console.error("[GoogleCalendar] updateEvent exception", e);
   }
 };
 
