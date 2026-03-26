@@ -1,14 +1,18 @@
 import { useMemo, useState } from "react";
-import { format } from "date-fns";
+import { addDays, addMonths, addWeeks, addYears, format } from "date-fns";
+import { Plus } from "lucide-react";
+import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { VisitsKpiBar, type VisitsKpiKey } from "./components/VisitsKpiBar";
 import { VisitsFilters as VisitsFiltersPanel } from "./components/VisitsFilters";
 import { VisitsTable } from "./components/VisitsTable";
 import { VisitDetailDrawer, type VisitDrawerSection } from "./components/VisitDetailDrawer";
+import { VisitFormDrawer } from "../calendar/components/VisitFormDrawer";
 import { applyVisitFilters } from "./utils/visitFilters";
 import { computeVisitsKpis } from "./utils/visitKpis";
 import {
   useAppointments,
+  useCreateAppointmentsMutation,
   useUpsertAppointmentMutation,
   useAddDepositMutation,
   useDeleteVisitMutation,
@@ -16,6 +20,7 @@ import {
   useMarkVisitCompletedMutation,
   usePatients,
   useRemoveDepositMutation,
+  useSettings,
   useUpdateVisitNotesMutation,
 } from "../../hooks/useData";
 import type { Appointment, VisitFilters } from "../../types";
@@ -54,7 +59,9 @@ export const VisitsPage = () => {
   const { pushToast } = useToastStore();
   const { data: allVisits = [] } = useAppointments();
   const { data: patients = [] } = usePatients();
+  const { data: settings } = useSettings();
   const { mutate: upsertVisit } = useUpsertAppointmentMutation();
+  const { mutate: createVisits } = useCreateAppointmentsMutation();
   const { mutate: markCompleted } = useMarkVisitCompletedMutation();
   const { mutate: deleteVisit } = useDeleteVisitMutation();
   const { mutate: duplicateVisit } = useDuplicateVisitMutation();
@@ -66,6 +73,8 @@ export const VisitsPage = () => {
   const [activeKpi, setActiveKpi] = useState<VisitsKpiKey | null>(null);
   const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
   const [drawerSection, setDrawerSection] = useState<VisitDrawerSection>("details");
+  const [formOpen, setFormOpen] = useState(false);
+  const [prefill, setPrefill] = useState<{ patientId?: string } | undefined>(undefined);
 
   const patientMap = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients]);
 
@@ -106,6 +115,56 @@ export const VisitsPage = () => {
     setDrawerSection(section);
   };
 
+  const openNewVisit = () => {
+    setSelectedVisitId(null);
+    setPrefill(filters.patientId ? { patientId: filters.patientId } : undefined);
+    setFormOpen(true);
+  };
+
+  const shiftRecurringDate = (
+    date: Date,
+    pattern: "none" | "daily" | "weekly" | "monthly" | "yearly",
+    offset: number
+  ) => {
+    if (pattern === "none") return date;
+    if (pattern === "daily") return addDays(date, offset);
+    if (pattern === "weekly") return addWeeks(date, offset);
+    if (pattern === "monthly") return addMonths(date, offset);
+    return addYears(date, offset);
+  };
+
+  const saveVisit = ({
+    appointment,
+    recurrence,
+  }: {
+    appointment: Appointment;
+    scope: "single" | "series";
+    recurrence: { pattern: "none" | "daily" | "weekly" | "monthly" | "yearly"; count: number };
+  }) => {
+    if (recurrence.pattern === "none") {
+      upsertVisit(appointment);
+      pushToast({ title: "Visita pianificata", tone: "success" });
+    } else {
+      const seriesId = crypto.randomUUID();
+      const occurrences = Array.from({ length: recurrence.count }).map((_, index) => {
+        const startDate = shiftRecurringDate(new Date(appointment.start), recurrence.pattern, index);
+        const endDate = shiftRecurringDate(new Date(appointment.end), recurrence.pattern, index);
+        return {
+          ...appointment,
+          id: crypto.randomUUID(),
+          start: startDate.toISOString(),
+          end: endDate.toISOString(),
+          seriesId,
+        };
+      });
+      createVisits(occurrences);
+      pushToast({ title: "Visite pianificate", tone: "success" });
+    }
+
+    setFormOpen(false);
+    setPrefill(undefined);
+  };
+
   const updateVisit = (updated: Appointment) => {
     upsertVisit(updated);
   };
@@ -116,6 +175,19 @@ export const VisitsPage = () => {
         <div>
           <h2 className="text-2xl font-semibold text-slate-900">Visite</h2>
           <p className="text-sm text-slate-500">Priorità operative e gestione rapida delle visite.</p>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <Button
+            onClick={openNewVisit}
+            disabled={!settings || patients.length === 0}
+            className="disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Nuova visita
+          </Button>
+          {patients.length === 0 ? (
+            <p className="text-right text-xs text-slate-500">Aggiungi prima un paziente per pianificare una visita.</p>
+          ) : null}
         </div>
       </div>
 
@@ -184,6 +256,20 @@ export const VisitsPage = () => {
           pushToast({ title: "Note salvate", tone: "success" });
         }}
       />
+
+      {settings ? (
+        <VisitFormDrawer
+          open={formOpen}
+          onClose={() => {
+            setFormOpen(false);
+            setPrefill(undefined);
+          }}
+          patients={patients}
+          settings={settings}
+          prefill={prefill}
+          onSave={saveVisit}
+        />
+      ) : null}
 
     </div>
   );
