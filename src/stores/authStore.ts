@@ -4,9 +4,11 @@ import { supabase } from "../lib/supabase";
 
 type AuthState = {
   session: Session | null;
+  providerToken: string | null;
   loading: boolean;
   init: () => Promise<void>;
   login: (email: string, password: string) => Promise<{ error: string | null }>;
+  loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -21,14 +23,22 @@ const toSession = (user: { email?: string; user_metadata?: Record<string, unknow
 
 export const useAuthStore = create<AuthState>((set) => ({
   session: null,
+  providerToken: null,
   loading: true,
 
   init: async () => {
     const { data } = await supabase.auth.getSession();
-    set({ session: toSession(data.session?.user ?? null), loading: false });
+    set({
+      session: toSession(data.session?.user ?? null),
+      providerToken: data.session?.provider_token ?? null,
+      loading: false,
+    });
 
     supabase.auth.onAuthStateChange((_event, session) => {
-      set({ session: toSession(session?.user ?? null) });
+      set({
+        session: toSession(session?.user ?? null),
+        providerToken: session?.provider_token ?? null,
+      });
     });
   },
 
@@ -39,8 +49,22 @@ export const useAuthStore = create<AuthState>((set) => ({
     return { error: null };
   },
 
+  loginWithGoogle: async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        scopes: "https://www.googleapis.com/auth/calendar",
+        redirectTo: window.location.origin,
+        queryParams: {
+          access_type: "online",
+          prompt: "consent",
+        },
+      },
+    });
+  },
+
   logout: async () => {
     await supabase.auth.signOut();
-    set({ session: null });
+    set({ session: null, providerToken: null });
   },
 }));

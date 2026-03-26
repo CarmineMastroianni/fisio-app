@@ -55,6 +55,7 @@ const mapAppointment = (row: any): Appointment => ({
   deposits: (row.deposits as Deposit[]) ?? [],
   notes: row.notes as VisitNotes | undefined,
   seriesId: row.series_id as string | undefined,
+  googleEventId: row.google_event_id as string | undefined,
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -92,6 +93,7 @@ const appointmentToRow = (apt: Appointment, userId?: string) => ({
   deposits: apt.deposits ?? [],
   notes: apt.notes ?? null,
   series_id: apt.seriesId ?? null,
+  google_event_id: apt.googleEventId ?? null,
 });
 
 // ============================================================
@@ -470,6 +472,7 @@ export const listVisits = async (filters: VisitFilters): Promise<Appointment[]> 
 
 const DEFAULT_SETTINGS: Settings = {
   tariffaStandard: 70,
+  googleCalendarEnabled: false,
   trattamenti: [
     { id: crypto.randomUUID(), nome: "Terapia manuale", durata: 60, costoDefault: 75 },
     { id: crypto.randomUUID(), nome: "Rieducazione posturale", durata: 45, costoDefault: 65 },
@@ -491,6 +494,7 @@ export const getSettings = async (): Promise<Settings> => {
     tariffaStandard: Number(data.tariffa_standard),
     trattamenti: (data.trattamenti as Settings["trattamenti"]) ?? DEFAULT_SETTINGS.trattamenti,
     metodiPagamento: (data.metodi_pagamento as Settings["metodiPagamento"]) ?? DEFAULT_SETTINGS.metodiPagamento,
+    googleCalendarEnabled: (data.google_calendar_enabled as boolean) ?? false,
   };
 };
 
@@ -504,6 +508,7 @@ export const setSettings = async (settings: Settings): Promise<void> => {
     tariffa_standard: settings.tariffaStandard,
     trattamenti: settings.trattamenti,
     metodi_pagamento: settings.metodiPagamento,
+    google_calendar_enabled: settings.googleCalendarEnabled ?? false,
     updated_at: new Date().toISOString(),
   }, { onConflict: "user_id" });
   if (error) throw error;

@@ -94,6 +94,7 @@ export type Appointment = {
   notes?: VisitNotes;
   deposits?: Deposit[];
   seriesId?: string;
+  googleEventId?: string;
 };
 
 export type Treatment = {
@@ -112,6 +113,7 @@ export type Settings = {
   tariffaStandard: number;
   trattamenti: Treatment[];
   metodiPagamento: PaymentMethod[];
+  googleCalendarEnabled: boolean;
 };
 
 export type Session = {

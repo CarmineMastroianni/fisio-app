@@ -3,11 +3,13 @@ import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Field } from "../components/Field";
 import { useSettings, useSettingsMutation } from "../hooks/useData";
+import { useAuthStore } from "../stores/authStore";
 import type { PaymentMethod, Treatment } from "../types";
 
 export const SettingsPage = () => {
   const { data: settings } = useSettings();
   const { mutate } = useSettingsMutation();
+  const { loginWithGoogle, providerToken } = useAuthStore();
 
   const [treatmentName, setTreatmentName] = useState("");
   const [treatmentDuration, setTreatmentDuration] = useState(45);
@@ -127,6 +129,45 @@ export const SettingsPage = () => {
               <Button className="mt-3" onClick={() => saveSettings({ tariffaStandard: standardRate })}>
                 Salva tariffa
               </Button>
+            </div>
+          </Card>
+
+          <Card>
+            <h3 className="text-sm font-semibold text-slate-800">Google Calendar</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Sincronizza le visite con il tuo Google Calendar personale.
+            </p>
+            <div className="mt-4 space-y-3">
+              {!providerToken ? (
+                <div>
+                  <p className="mb-3 text-xs text-amber-600">
+                    Per abilitare la sincronizzazione devi accedere con il tuo account Google.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void loginWithGoogle()}
+                    className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Collega account Google
+                  </button>
+                </div>
+              ) : (
+                <label className="flex cursor-pointer items-center gap-3">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={settings.googleCalendarEnabled}
+                      onChange={(e) => saveSettings({ googleCalendarEnabled: e.target.checked })}
+                    />
+                    <div className={`h-6 w-11 rounded-full transition ${settings.googleCalendarEnabled ? "bg-teal-500" : "bg-slate-200"}`} />
+                    <div className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${settings.googleCalendarEnabled ? "translate-x-5" : ""}`} />
+                  </div>
+                  <span className="text-sm text-slate-700">
+                    {settings.googleCalendarEnabled ? "Sincronizzazione attiva" : "Sincronizzazione disattivata"}
+                  </span>
+                </label>
+              )}
             </div>
           </Card>
         </div>

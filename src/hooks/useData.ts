@@ -31,6 +31,7 @@ import {
   updateVisitStatus,
   upsertAppointment,
 } from "../lib/storage";
+import { createCalendarEvent, deleteCalendarEvent, updateCalendarEvent } from "../lib/googleCalendar";
 import type {
   Appointment,
   Deposit,
@@ -199,17 +200,65 @@ export const useDeletePatientMutation = () => {
 
 export const useUpsertAppointmentMutation = () => {
   const queryClient = useQueryClient();
+  const providerToken = useAuthStore((state) => state.providerToken);
+  const sessionId = useAuthStore((state) => state.session?.id);
+
   return useMutation({
     mutationFn: (appointment: Appointment) => upsertAppointment(appointment),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
+    onSuccess: async (saved) => {
+      await queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false });
+
+      if (!providerToken) return;
+      const settings = queryClient.getQueryData<Settings>(["settings", sessionId]);
+      if (!settings?.googleCalendarEnabled) return;
+
+      const patients = queryClient.getQueryData<Patient[]>(["patients", sessionId]);
+      const patient = patients?.find((p) => p.id === saved.patientId);
+      const patientName = patient ? `${patient.nome} ${patient.cognome}` : "Paziente";
+
+      if (saved.googleEventId) {
+        await updateCalendarEvent(providerToken, saved.googleEventId, saved, patientName);
+      } else {
+        const googleEventId = await createCalendarEvent(providerToken, saved, patientName);
+        if (googleEventId) {
+          await upsertAppointment({ ...saved, googleEventId });
+          await queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false });
+        }
+      }
+    },
   });
 };
 
 export const useCreateAppointmentsMutation = () => {
   const queryClient = useQueryClient();
+  const providerToken = useAuthStore((state) => state.providerToken);
+  const sessionId = useAuthStore((state) => state.session?.id);
+
   return useMutation({
     mutationFn: (appointments: Appointment[]) => createAppointments(appointments),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
+    onSuccess: async (_data, appointments) => {
+      await queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false });
+
+      if (!providerToken) return;
+      const settings = queryClient.getQueryData<Settings>(["settings", sessionId]);
+      if (!settings?.googleCalendarEnabled) return;
+
+      const patients = queryClient.getQueryData<Patient[]>(["patients", sessionId]);
+      const patient = patients?.find((p) => p.id === appointments[0]?.patientId);
+      const patientName = patient ? `${patient.nome} ${patient.cognome}` : "Paziente";
+
+      const updated = await Promise.all(
+        appointments.map(async (apt) => {
+          const googleEventId = await createCalendarEvent(providerToken, apt, patientName);
+          return googleEventId ? { ...apt, googleEventId } : apt;
+        })
+      );
+      const withEvents = updated.filter((a) => a.googleEventId);
+      if (withEvents.length > 0) {
+        await Promise.all(withEvents.map((a) => upsertAppointment(a)));
+        await queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false });
+      }
+    },
   });
 };
 
@@ -325,8 +374,23 @@ export const useMarkVisitCompletedMutation = () => {
 
 export const useDeleteVisitMutation = () => {
   const queryClient = useQueryClient();
+  const providerToken = useAuthStore((state) => state.providerToken);
+  const sessionId = useAuthStore((state) => state.session?.id);
+
   return useMutation({
-    mutationFn: (visitId: string) => deleteVisit(visitId),
+    mutationFn: async (visitId: string) => {
+      if (providerToken) {
+        const settings = queryClient.getQueryData<Settings>(["settings", sessionId]);
+        if (settings?.googleCalendarEnabled) {
+          const appointments = queryClient.getQueryData<Appointment[]>(["appointments", sessionId]);
+          const apt = appointments?.find((a) => a.id === visitId);
+          if (apt?.googleEventId) {
+            await deleteCalendarEvent(providerToken, apt.googleEventId);
+          }
+        }
+      }
+      return deleteVisit(visitId);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false }),
   });
 };

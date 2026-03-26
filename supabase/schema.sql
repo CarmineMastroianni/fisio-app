@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS appointments (
   deposits     jsonb         DEFAULT '[]',
   notes        jsonb,
   series_id    uuid,
+  google_event_id text,
   created_at   timestamptz   NOT NULL DEFAULT now()
 );
 
@@ -56,6 +57,7 @@ CREATE TABLE IF NOT EXISTS settings (
   tariffa_standard  numeric(10,2) NOT NULL DEFAULT 70,
   trattamenti       jsonb       NOT NULL DEFAULT '[]',
   metodi_pagamento  jsonb       NOT NULL DEFAULT '[]',
+  google_calendar_enabled boolean NOT NULL DEFAULT false,
   updated_at        timestamptz NOT NULL DEFAULT now()
 );
 
@@ -127,6 +129,16 @@ CREATE POLICY "documents: accesso proprio" ON patient_documents
 -- visit_attachments
 CREATE POLICY "attachments: accesso proprio" ON visit_attachments
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+-- ============================================================
+-- MIGRAZIONE: Google Calendar integration
+-- Esegui queste ALTER TABLE se lo schema era già applicato.
+-- ============================================================
+ALTER TABLE appointments
+  ADD COLUMN IF NOT EXISTS google_event_id text;
+
+ALTER TABLE settings
+  ADD COLUMN IF NOT EXISTS google_calendar_enabled boolean NOT NULL DEFAULT false;
 
 -- ============================================================
 -- NOTA SULLE CREDENZIALI FISIOTERAPISTI
