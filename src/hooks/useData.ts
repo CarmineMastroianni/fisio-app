@@ -32,6 +32,7 @@ import {
   upsertAppointment,
 } from "../lib/storage";
 import { createCalendarEvent, deleteCalendarEvent, updateCalendarEvent } from "../lib/googleCalendar";
+import { useToastStore } from "../stores/toastStore";
 import type {
   Appointment,
   Deposit,
@@ -202,15 +203,24 @@ export const useUpsertAppointmentMutation = () => {
   const queryClient = useQueryClient();
   const providerToken = useAuthStore((state) => state.providerToken);
   const sessionId = useAuthStore((state) => state.session?.id);
+  const { pushToast } = useToastStore();
 
   return useMutation({
     mutationFn: (appointment: Appointment) => upsertAppointment(appointment),
     onSuccess: async (saved) => {
       await queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false });
 
-      if (!providerToken) return;
       const settings = queryClient.getQueryData<Settings>(["settings", sessionId]);
       if (!settings?.googleCalendarEnabled) return;
+
+      if (!providerToken) {
+        pushToast({
+          title: "Google Calendar non collegato",
+          description: "Accedi con Google per sincronizzare le visite.",
+          tone: "error",
+        });
+        return;
+      }
 
       const patients = queryClient.getQueryData<Patient[]>(["patients", sessionId]);
       const patient = patients?.find((p) => p.id === saved.patientId);
@@ -218,11 +228,19 @@ export const useUpsertAppointmentMutation = () => {
 
       if (saved.googleEventId) {
         await updateCalendarEvent(providerToken, saved.googleEventId, saved, patientName);
+        pushToast({ title: "Calendario aggiornato", tone: "success" });
       } else {
         const googleEventId = await createCalendarEvent(providerToken, saved, patientName);
         if (googleEventId) {
           await upsertAppointment({ ...saved, googleEventId });
           await queryClient.invalidateQueries({ queryKey: ["appointments"], exact: false });
+          pushToast({ title: "Visita aggiunta al calendario Google", tone: "success" });
+        } else {
+          pushToast({
+            title: "Sync Google Calendar fallito",
+            description: "Controlla che il calendario sia collegato in Settings.",
+            tone: "error",
+          });
         }
       }
     },

@@ -290,6 +290,9 @@ export const PatientDetailPage = () => {
                 <MapPin className="mr-2 h-4 w-4" /> Maps
               </a>
             ) : null}
+            <Button size="sm" variant="danger" onClick={deletePatient}>
+              <Trash2 className="mr-2 h-4 w-4" /> Elimina
+            </Button>
           </div>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -302,17 +305,6 @@ export const PatientDetailPage = () => {
             <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Insoluti</p>
             <p className="mt-2 font-semibold text-rose-600">{formatCurrency(outstandingTotal)}</p>
             <p className="text-xs text-slate-500">Totale da incassare</p>
-          </div>
-        </div>
-        <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-600">Elimina Paziente</p>
-              <p className="mt-1 text-sm text-rose-700">Rimuove il paziente con visite, documenti e allegati collegati.</p>
-            </div>
-            <Button size="sm" variant="danger" className="w-full md:w-auto" onClick={deletePatient}>
-              <Trash2 className="mr-2 h-4 w-4" /> Elimina paziente
-            </Button>
           </div>
         </div>
       </div>
