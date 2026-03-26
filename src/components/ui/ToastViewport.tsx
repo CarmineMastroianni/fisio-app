@@ -26,7 +26,7 @@ export const ToastViewport = () => {
   }, [toasts, removeToast]);
 
   return (
-    <div className="fixed right-4 top-20 z-50 flex w-full max-w-sm flex-col gap-3">
+    <div className="toast-viewport">
       {toasts.map((toast) => {
         const tone = toast.tone ?? "info";
         const Icon = toneIcon[tone];

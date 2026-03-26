@@ -83,24 +83,26 @@ export const Layout = ({ children }: { children: ReactNode }) => {
         }}
       >
         <div className="relative mx-auto grid h-full max-w-screen-2xl grid-cols-[1fr_1fr_var(--fab-size)_1fr_1fr] items-center">
-          <NavLink
-            to="/dashboard"
-            className={`flex min-h-[64px] flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
-              location.pathname.startsWith("/dashboard") ? "text-teal-700" : "text-slate-500"
-            }`}
-          >
-            <LayoutDashboard className="h-6 w-6" />
-            Dashboard
-          </NavLink>
-          <NavLink
-            to="/calendar"
-            className={`flex min-h-[64px] flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
-              location.pathname.startsWith("/calendar") ? "text-teal-700" : "text-slate-500"
-            }`}
-          >
-            <CalendarDays className="h-6 w-6" />
-            Calendario
-          </NavLink>
+          {[
+            { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+            { to: "/calendar", label: "Calendario", icon: CalendarDays },
+          ].map(({ to, label, icon: Icon }) => {
+            const isActive = location.pathname.startsWith(to);
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                className={`flex min-h-[64px] flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition ${
+                  isActive ? "text-teal-700" : "text-slate-400"
+                }`}
+              >
+                <span className={`rounded-2xl p-1.5 transition ${isActive ? "bg-teal-50" : ""}`}>
+                  <Icon className="h-5 w-5" />
+                </span>
+                {label}
+              </NavLink>
+            );
+          })}
           <div className="col-start-3 h-full" aria-hidden />
           <button
             type="button"
@@ -111,24 +113,26 @@ export const Layout = ({ children }: { children: ReactNode }) => {
             <Plus className="h-7 w-7" />
           </button>
           <div className="pointer-events-none absolute left-1/2 top-0 h-[var(--fab-size)] w-[var(--fab-size)] -translate-x-1/2 -translate-y-[var(--fab-raise)] rounded-full ring-4 ring-white/90" />
-          <NavLink
-            to="/visits"
-            className={`flex min-h-[64px] flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
-              location.pathname.startsWith("/visits") ? "text-teal-700" : "text-slate-500"
-            }`}
-          >
-            <ClipboardList className="h-6 w-6" />
-            Visite
-          </NavLink>
-          <NavLink
-            to="/patients"
-            className={`flex min-h-[64px] flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
-              location.pathname.startsWith("/patients") ? "text-teal-700" : "text-slate-500"
-            }`}
-          >
-            <Users className="h-6 w-6" />
-            Pazienti
-          </NavLink>
+          {[
+            { to: "/visits", label: "Visite", icon: ClipboardList },
+            { to: "/patients", label: "Pazienti", icon: Users },
+          ].map(({ to, label, icon: Icon }) => {
+            const isActive = location.pathname.startsWith(to);
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                className={`flex min-h-[64px] flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition ${
+                  isActive ? "text-teal-700" : "text-slate-400"
+                }`}
+              >
+                <span className={`rounded-2xl p-1.5 transition ${isActive ? "bg-teal-50" : ""}`}>
+                  <Icon className="h-5 w-5" />
+                </span>
+                {label}
+              </NavLink>
+            );
+          })}
         </div>
       </nav>
       <button

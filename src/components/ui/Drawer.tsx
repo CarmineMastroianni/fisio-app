@@ -14,10 +14,11 @@ type DrawerProps = {
   open: boolean;
   title: string;
   children: React.ReactNode;
+  footer?: React.ReactNode;
   onClose: () => void;
 };
 
-export const Drawer = ({ open, title, children, onClose }: DrawerProps) => {
+export const Drawer = ({ open, title, children, footer, onClose }: DrawerProps) => {
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -79,6 +80,9 @@ export const Drawer = ({ open, title, children, onClose }: DrawerProps) => {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        {footer ? (
+          <div className="border-t border-slate-200 bg-white px-5 py-4">{footer}</div>
+        ) : null}
       </div>
     </div>
   );

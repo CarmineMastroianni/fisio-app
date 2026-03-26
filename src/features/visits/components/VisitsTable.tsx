@@ -1,8 +1,8 @@
 import { useMemo } from "react";
-import { MoreHorizontal } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "../../../components/Badge";
 import { Button } from "../../../components/Button";
+import { DropdownMenu } from "../../../components/ui/DropdownMenu";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { formatCurrency, formatDateTime } from "../../../lib/utils";
 import { getPaidAmount, getPaymentStatus } from "../../../lib/payments";
@@ -28,57 +28,27 @@ type VisitsTableProps = {
 export const VisitsTable = ({ visits, patients, onOpen, onMarkCompleted, onMarkPaid, onDuplicate, onDelete }: VisitsTableProps) => {
   const patientMap = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients]);
 
-  const renderRowActions = (visit: Appointment) => (
-    <details className="relative">
-      <summary aria-label="Azioni visita" className="list-none cursor-pointer">
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50">
-          <MoreHorizontal className="h-4 w-4" />
-        </span>
-      </summary>
-      <div className="absolute right-0 z-10 mt-2 w-44 rounded-2xl border border-slate-200 bg-white p-2 text-xs shadow-lg">
-        {visit.status !== "completata" ? (
-          <button
-            type="button"
-            onClick={() => onMarkCompleted(visit.id)}
-            className="w-full rounded-xl px-3 py-2 text-left text-slate-600 hover:bg-slate-50"
-          >
-            Segna completata
-          </button>
-        ) : null}
-        {getPaymentStatus(visit) !== "paid" ? (
-          <button
-            type="button"
-            onClick={() => onMarkPaid(visit.id)}
-            className="w-full rounded-xl px-3 py-2 text-left text-slate-600 hover:bg-slate-50"
-          >
-            Segna pagata
-          </button>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => onDuplicate(visit.id)}
-          className="w-full rounded-xl px-3 py-2 text-left text-slate-600 hover:bg-slate-50"
-        >
-          Duplica
-        </button>
-        <Link
-          to={`/patients/${visit.patientId}`}
-          className="block rounded-xl px-3 py-2 text-left text-slate-600 hover:bg-slate-50"
-        >
-          Vai a scheda paziente
-        </Link>
-        <button
-          type="button"
-          onClick={() => {
-            if (window.confirm("Eliminare questa visita?")) onDelete(visit.id);
-          }}
-          className="w-full rounded-xl px-3 py-2 text-left text-rose-600 hover:bg-rose-50"
-        >
-          Elimina
-        </button>
-      </div>
-    </details>
-  );
+  const buildMenuItems = (visit: Appointment) => {
+    const items: Parameters<typeof DropdownMenu>[0]["items"] = [];
+    if (visit.status !== "completata") {
+      items.push({ type: "action", label: "Segna completata", onClick: () => onMarkCompleted(visit.id) });
+    }
+    if (getPaymentStatus(visit) !== "paid") {
+      items.push({ type: "action", label: "Segna pagata", onClick: () => onMarkPaid(visit.id) });
+    }
+    items.push({ type: "action", label: "Duplica", onClick: () => onDuplicate(visit.id) });
+    items.push({ type: "link", label: "Scheda paziente", to: `/patients/${visit.patientId}` });
+    items.push({ type: "separator" });
+    items.push({
+      type: "action",
+      label: "Elimina",
+      variant: "danger",
+      onClick: () => {
+        if (window.confirm("Eliminare questa visita?")) onDelete(visit.id);
+      },
+    });
+    return items;
+  };
 
   if (visits.length === 0) {
     return <EmptyState title="Nessuna visita" description="Non ci sono visite con i filtri selezionati." />;
@@ -154,7 +124,7 @@ export const VisitsTable = ({ visits, patients, onOpen, onMarkCompleted, onMarkP
                       <Button size="sm" variant="outline" onClick={() => onOpen(visit.id)}>
                         Apri
                       </Button>
-                      {renderRowActions(visit)}
+                      <DropdownMenu items={buildMenuItems(visit)} />
                     </div>
                   </td>
                 </tr>
@@ -186,7 +156,7 @@ export const VisitsTable = ({ visits, patients, onOpen, onMarkCompleted, onMarkP
                     </Link>
                   ) : null}
                 </div>
-                {renderRowActions(visit)}
+                <DropdownMenu items={buildMenuItems(visit)} />
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <Badge label={visit.status} tone={statusTone[visit.status]} />

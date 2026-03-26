@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { addHours, format } from "date-fns";
 import { Mail, MapPin, Phone, Plus, Pencil } from "lucide-react";
 import { Breadcrumb } from "../../components/ui/Breadcrumb";
+import { DropdownMenu } from "../../components/ui/DropdownMenu";
 import { Tabs } from "../../components/ui/Tabs";
 import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
@@ -520,12 +521,17 @@ const VisitsTab = ({ visits, onOpen, onDuplicate, onMarkCompleted, onMarkPaid, o
                 </td>
                 <td className="pr-4">{formatCurrency(visit.costo)}</td>
                 <td className="py-3 text-right">
-                  <div className="flex flex-wrap justify-end gap-2">
+                  <div className="flex items-center justify-end gap-2">
                     <Button size="sm" variant="outline" onClick={() => onOpen(visit.id)}>Apri</Button>
-                    <Button size="sm" variant="ghost" onClick={() => onDuplicate(visit.id)}>Duplica</Button>
-                    <Button size="sm" variant="outline" onClick={() => onMarkCompleted(visit.id)}>Segna completata</Button>
-                    <Button size="sm" variant="outline" onClick={() => onMarkPaid(visit.id)}>Segna pagata</Button>
-                    <Button size="sm" variant="danger" onClick={() => onDelete(visit.id)}>Elimina</Button>
+                    <DropdownMenu
+                      items={[
+                        { type: "action", label: "Segna completata", onClick: () => onMarkCompleted(visit.id) },
+                        { type: "action", label: "Segna pagata", onClick: () => onMarkPaid(visit.id) },
+                        { type: "action", label: "Duplica", onClick: () => onDuplicate(visit.id) },
+                        { type: "separator" },
+                        { type: "action", label: "Elimina", variant: "danger", onClick: () => onDelete(visit.id) },
+                      ]}
+                    />
                   </div>
                 </td>
               </tr>
