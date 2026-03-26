@@ -53,7 +53,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        scopes: "https://www.googleapis.com/auth/calendar",
+        scopes: "https://www.googleapis.com/auth/calendar.events",
         redirectTo: window.location.origin,
         queryParams: {
           access_type: "online",
