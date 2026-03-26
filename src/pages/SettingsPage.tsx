@@ -17,11 +17,11 @@ export const SettingsPage = () => {
   const [paymentName, setPaymentName] = useState("");
   const [standardRate, setStandardRate] = useState(70);
 
-  if (!settings) return null;
-
   useEffect(() => {
-    setStandardRate(settings.tariffaStandard);
-  }, [settings.tariffaStandard]);
+    if (settings) setStandardRate(settings.tariffaStandard);
+  }, [settings?.tariffaStandard]);
+
+  if (!settings) return null;
 
   const saveSettings = (partial: Partial<typeof settings>) => {
     mutate({ ...settings, ...partial });

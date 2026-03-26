@@ -8,6 +8,7 @@ import { Tabs } from "../../components/ui/Tabs";
 import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Drawer } from "../../components/ui/Drawer";
+import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { EmptyState } from "../../components/ui/EmptyState";
 import {
   useAddDepositMutation,
@@ -83,6 +84,7 @@ export const PatientDetailPage = () => {
   const { mutate: duplicateMutate } = useDuplicateVisitMutation();
 
   const [drawer, setDrawer] = useState<DrawerState>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
@@ -173,11 +175,6 @@ export const PatientDetailPage = () => {
   };
 
   const deletePatient = () => {
-    const label = `${patient.nome} ${patient.cognome}`.trim() || "questo paziente";
-    if (!window.confirm(`Eliminare ${label}? Verranno rimossi anche visite, documenti e allegati collegati.`)) {
-      return;
-    }
-
     deletePatientMutate(patient.id, {
       onSuccess: () => {
         pushToast({ title: "Paziente eliminato", tone: "info" });
@@ -290,7 +287,7 @@ export const PatientDetailPage = () => {
                 <MapPin className="mr-2 h-4 w-4" /> Maps
               </a>
             ) : null}
-            <Button size="sm" variant="danger" onClick={deletePatient}>
+            <Button size="sm" variant="danger" onClick={() => setConfirmDeleteOpen(true)}>
               <Trash2 className="mr-2 h-4 w-4" /> Elimina
             </Button>
           </div>
@@ -310,6 +307,15 @@ export const PatientDetailPage = () => {
       </div>
 
       <Tabs items={tabs} activeId={activeTab} onChange={setActiveTab} />
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="Elimina paziente"
+        description={`Stai per eliminare ${`${patient.nome} ${patient.cognome}`.trim() || "questo paziente"}. Verranno rimossi anche tutte le visite, i documenti e gli allegati collegati. L'operazione non è reversibile.`}
+        confirmLabel="Elimina paziente"
+        onConfirm={() => { setConfirmDeleteOpen(false); deletePatient(); }}
+        onCancel={() => setConfirmDeleteOpen(false)}
+      />
 
       <Drawer open={drawer?.type === "edit-patient"} title="Modifica paziente" onClose={() => setDrawer(null)}>
         <EditPatientForm
